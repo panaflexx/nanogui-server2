@@ -25,11 +25,18 @@
 #		include <OpenGL/gl3.h>
 #		include <OpenGL/glext.h>
 #		define NANOVG_FBO_VALID 1
+#   else
+#		include <GL/gl.h>
+#		include <GL/glext.h>
+#		define NANOVG_FBO_VALID 1
 #	endif
 #elif defined(NANOVG_GL2)
 // On OS X including glext defines FBO on GL2 too.
 #	ifdef __APPLE__
 #		include <OpenGL/glext.h>
+#		define NANOVG_FBO_VALID 1
+#   else
+#		include <GL/glext.h>
 #		define NANOVG_FBO_VALID 1
 #	endif
 #endif

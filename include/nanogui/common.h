@@ -20,6 +20,7 @@
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <limits.h>
 
 /* Set to 1 to draw boxes around widgets */
 //#define NANOGUI_SHOW_WIDGET_BOUNDS 1
