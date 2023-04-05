@@ -76,7 +76,7 @@ other goodies.
 Example screenshot
 ----------------------------------------------------------------------------------------
 
-.. image:: https://github.com/wjakob/nanogui/raw/master/resources/screenshot.png
+.. image:: https://raw.githubusercontent.com/panaflexx/nanogui-server2/master/resources/screenshot.png
    :alt: Screenshot of Example 1.
    :align: center
 
