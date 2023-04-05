@@ -154,7 +154,7 @@ public:
     /// Add a new data widget controlled using custom getter/setter functions
     template <typename Type> detail::FormWidget<Type> *
     add_variable(const std::string &label, const std::function<void(const Type &)> &setter,
-                const std::function<Type()> &getter) {
+                const std::function<Type()> &getter, bool editable = true) {
         Label *label_w = new Label(m_window, label, m_label_font_name, m_label_font_size);
         auto widget = new detail::FormWidget<Type>(m_window);
         auto refresh = [widget, getter] {
@@ -164,6 +164,7 @@ public:
         };
         refresh();
         widget->set_callback(setter);
+        widget->set_editable(editable);
         widget->set_font_size(m_widget_font_size);
         Vector2i fs = widget->fixed_size();
         widget->set_fixed_size(Vector2i(fs.x() != 0 ? fs.x() : m_fixed_size.x(),
@@ -179,10 +180,11 @@ public:
 
     /// Add a new data widget that exposes a raw variable in memory
     template <typename Type> detail::FormWidget<Type> *
-    add_variable(const std::string &label, Type &value) {
+    add_variable(const std::string &label, Type &value, bool editable = true) {
         return add_variable<Type>(label,
             [&](const Type & v) { value = v; },
-            [&]() -> Type { return value; }
+            [&]() -> Type { return value; },
+            editable
         );
     }
 
@@ -196,6 +198,18 @@ public:
         m_layout->append_row(0);
         m_layout->set_anchor(button, AdvancedGridLayout::Anchor(1, m_layout->row_count()-1, 3, 1));
         return button;
+    }
+
+    /// Add a textarea
+    TextArea *add_textarea(const std::string &text) {
+        TextArea *text_area = new TextArea(m_window);
+        text_area->set_font_size(16);
+        text_area->append(text);
+        if (m_layout->row_count() > 0)
+            m_layout->append_row(m_variable_spacing);
+        m_layout->append_row(0);
+        m_layout->set_anchor(text_area, AdvancedGridLayout::Anchor(1, m_layout->row_count()-1));
+        return text_area;
     }
 
     /// Add an arbitrary (optionally labeled) widget to the layout
@@ -307,7 +321,7 @@ public:
     void set_value(bool v) { set_checked(v); }
 
     /// Pass-through function for \ref nanogui::Widget::set-enabled.
-   // void set_editable(bool e) { set_enabled(e); }
+    void set_editable(bool e) { set_enabled(e); }
 
     /// Returns the value of \ref nanogui::CheckBox::checked.
     bool value() const { return checked(); }
@@ -336,6 +350,7 @@ public:
     }
 
     /// Pass-through function for \ref nanogui::Widget::set_enabled.
+    void set_editable(bool e) { set_enabled(e); }
 };
 
 /**
@@ -388,6 +403,7 @@ public:
     void set_value(const Color &c) { set_color(c); }
 
     /// Pass-through function for \ref nanogui::Widget::set_enabled.
+    void set_editable(bool e) { set_enabled(e); }
 
     /// Returns the value of \ref nanogui::ColorPicker::color.
     Color value() const { return color(); }

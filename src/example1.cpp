@@ -228,8 +228,8 @@ public:
     }
     void CreateBasicWindow()
     {
-        int TempWidth = 100;
-        int TempHeight = 200;
+        //int TempWidth = 100;
+        //int TempHeight = 200;
         Window* BasicWidgetsWindow = new Window(this, "Basic widgets", true);
 		addWindowButtons(BasicWidgetsWindow);
         BasicWidgetsWindow->set_position(Vector2i(200, 15));
@@ -385,6 +385,7 @@ public:
         text_box->set_fixed_size(Vector2i(60, 25));
         text_box->set_value("50");
         text_box->set_units("%");
+        text_box->set_editable(false);
         slider->set_callback([text_box](float value) {
             text_box->set_value(std::to_string((int)(value * 100)));
             });
