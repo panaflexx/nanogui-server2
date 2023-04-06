@@ -44,16 +44,12 @@ NAMESPACE_BEGIN(nanogui)
         virtual void set_pushed(bool pushed)override
         {
             m_pushed = pushed;
-            // code to auto close the popup windows
-            Widget* CurrWidget = this;
-            while (true)
-            {
-                Screen* CanICastSreen = dynamic_cast<Screen*>(CurrWidget);
-                if (CanICastSreen != NULL)break;
-                CurrWidget = CurrWidget->parent();
-            }
-            if(pushed) 
-                ((Screen*)(CurrWidget))->set_popup_visible(this);
+            // Add popup windows to screen
+            if(pushed) {
+                this->screen()->set_popup_visible(this);
+			} else {
+                this->screen()->remove_popup_visible(this);
+			}
         }
 
         Popup* popup() { return m_popup; }

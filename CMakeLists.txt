@@ -266,6 +266,14 @@ elseif (CMAKE_SYSTEM MATCHES "Linux" OR CMAKE_SYSTEM_NAME MATCHES "BSD")
   endif()
 endif()
 
+# Use freetype library
+if (NANOGUI_USE_FREETYPE)
+	add_definitions(-DFONS_USE_FREETYPE)
+	find_package(Freetype REQUIRED)
+    list(APPEND NANOGUI_LIBS ${FREETYPE_LIBRARIES})
+	include_directories(${FREETYPE_INCLUDE_DIRS})
+endif()
+
 # Run simple cmake converter to put font files into the data segment
 
 # Glob up resource files
@@ -330,6 +338,7 @@ endif()
 if (NANOGUI_BUILD_GLFW)
   list(APPEND NANOGUI_EXTRA $<TARGET_OBJECTS:glfw_objects>)
 endif()
+
 
 # Compile main NanoGUI library
 add_library(nanogui ${NANOGUI_LIBRARY_TYPE} 

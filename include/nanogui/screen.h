@@ -269,6 +269,7 @@ public:
     void move_window_to_front(Window* window);
     void draw_widgets();
     void set_popup_visible(PopupButton* iButton) { m_popup_visible.push_back(iButton); }
+    void remove_popup_visible(PopupButton* iButton) { m_popup_visible.remove(iButton); }
     std::vector<Widget*> m_focus_path;
     bool m_close_popups = false;
 

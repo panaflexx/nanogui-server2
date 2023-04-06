@@ -22,7 +22,7 @@ NAMESPACE_BEGIN(nanogui)
 
 Window::Window(Widget* parent, const std::string& title, bool resizable)
     : Widget(parent), m_title(title), m_button_panel(nullptr), m_modal(false), m_drag(false),
-      m_resize_dir(Vector2i(0, 0)), m_first_size(0), m_resizable(resizable), m_can_move(true), m_snap_offset(14),
+      m_resize_dir(Vector2i(0, 0)), m_first_size(0), m_resizable(resizable), m_can_move(true), m_snap_offset(8),
 	  m_can_snap(true), m_draw_shadow(false) 
 {
 	    	DebugName = m_parent->DebugName + ",Window";
@@ -279,7 +279,12 @@ bool Window::mouse_drag_event(const Vector2i& p, const Vector2i& rel, int button
         else
             m_pos += rel;
         m_pos = max(m_pos, Vector2i(0));
-        m_pos = min(m_pos, parent()->size() - m_size);
+		// If screen size, let the move extend past the edges 
+		if(parent() == dynamic_cast<Widget*>(this->screen())) {
+			m_pos = min(m_pos, parent()->size() - Vector2i(25));
+		} else {
+			m_pos = min(m_pos, parent()->size() - m_size);
+		}
         return true;
     }
     else if (m_resizable && m_resize && (button & (1 << GLFW_MOUSE_BUTTON_1)) != 0) {
