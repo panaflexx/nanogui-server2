@@ -97,8 +97,8 @@ void metal_window_init(void *nswin_, bool float_buffer) {
     layer.colorspace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     layer.contentsScale = nswin.backingScaleFactor;
     layer.pixelFormat = float_buffer ? MTLPixelFormatRGBA16Float : MTLPixelFormatBGRA8Unorm;
-    layer.displaySyncEnabled = NO;
-    layer.allowsNextDrawableTimeout = NO;
+    //layer.displaySyncEnabled = NO;
+    //layer.allowsNextDrawableTimeout = NO;
     layer.framebufferOnly = NO;
 }
 

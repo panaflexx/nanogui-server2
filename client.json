@@ -1,0 +1,61 @@
+{
+  "id": "main_window",
+  "type": "Window",
+  "title": "Event-Driven GUI Application",
+  "resizable": true,
+  "layout": "HBoxLayout",
+  "children": [
+    {
+      "id": "main_container",
+      "type": "View",
+      "layout": "VBoxLayout",
+      "children": [
+        {
+          "id": "title_label",
+          "type": "Label",
+          "text": "Welcome to Event-Driven GUI!"
+        },
+        {
+          "id": "button_container",
+          "type": "View",
+          "layout": "HBoxLayout",
+          "children": [
+            {
+              "id": "save_button",
+              "type": "Button",
+              "label": "Save"
+            },
+            {
+              "id": "load_button", 
+              "type": "Button",
+              "label": "Load"
+            },
+            {
+              "id": "quit_button",
+              "type": "Button", 
+              "label": "Quit"
+            }
+          ]
+        },
+        {
+          "id": "status_container",
+          "type": "View",
+          "layout": "GroupLayout",
+          "children": [
+            {
+              "id": "status_label",
+              "type": "Label",
+              "text": "Status: Ready"
+            },
+            {
+              "id": "interactive_area",
+              "type": "Label",
+              "text": "Interactive Area - Try hovering and clicking!"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
