@@ -269,9 +269,10 @@ public:
     void move_window_to_front(Window* window);
     void draw_widgets();
     void set_popup_visible(PopupButton* iButton) { m_popup_visible.push_back(iButton); }
-    void remove_popup_visible(PopupButton* iButton) { m_popup_visible.remove(iButton); }
+    void remove_popup_visible(PopupButton* iButton) { m_close_popups = true; m_popup_visible.remove(iButton); }
     std::vector<Widget*> m_focus_path;
     bool m_close_popups = false;
+    double m_last_interaction;
 
 protected:
     GLFWwindow* m_glfw_window = nullptr;
@@ -285,7 +286,6 @@ protected:
     Vector2i m_mouse_pos;
     bool m_drag_active;
     Widget* m_drag_widget = nullptr;
-    double m_last_interaction;
     bool m_process_events = true;
     Color m_background;
     std::string m_caption;

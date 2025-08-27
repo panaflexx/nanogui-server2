@@ -333,7 +333,8 @@ NVGcontext* nvgCreateInternal(NVGparams* params)
 	if (ctx->fs == NULL) goto error;
 
 	// Create font texture
-	ctx->fontImages[0] = ctx->params.renderCreateTexture(ctx->params.userPtr, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
+	//ctx->fontImages[0] = ctx->params.renderCreateTexture(ctx->params.userPtr, NVG_TEXTURE_ALPHA, fontParams.width, fontParams.height, 0, NULL);
+	ctx->fontImages[0] = ctx->params.renderCreateTexture(ctx->params.userPtr, NVG_TEXTURE_RGBA, fontParams.width, fontParams.height, 0, NULL);
 	if (ctx->fontImages[0] == 0) goto error;
 	ctx->fontImageIdx = 0;
 
@@ -2396,113 +2397,140 @@ static void nvg__flushTextTexture(NVGcontext* ctx)
 	}
 }
 
+
 static int nvg__allocTextAtlas(NVGcontext* ctx)
 {
-	int iw, ih;
-	nvg__flushTextTexture(ctx);
-	if (ctx->fontImageIdx >= NVG_MAX_FONTIMAGES-1)
-		return 0;
-	// if next fontImage already have a texture
-	if (ctx->fontImages[ctx->fontImageIdx+1] != 0)
-		nvgImageSize(ctx, ctx->fontImages[ctx->fontImageIdx+1], &iw, &ih);
-	else { // calculate the new font image size and create it.
-		nvgImageSize(ctx, ctx->fontImages[ctx->fontImageIdx], &iw, &ih);
-		if (iw > ih)
-			ih *= 2;
-		else
-			iw *= 2;
-		if (iw > NVG_MAX_FONTIMAGE_SIZE || ih > NVG_MAX_FONTIMAGE_SIZE)
-			iw = ih = NVG_MAX_FONTIMAGE_SIZE;
-		ctx->fontImages[ctx->fontImageIdx+1] = ctx->params.renderCreateTexture(ctx->params.userPtr, NVG_TEXTURE_ALPHA, iw, ih, 0, NULL);
-	}
-	++ctx->fontImageIdx;
-	fonsResetAtlas(ctx->fs, iw, ih);
-	return 1;
+    int iw, ih;
+    nvg__flushTextTexture(ctx);
+    if (ctx->fontImageIdx >= NVG_MAX_FONTIMAGES-1)
+        return 0;
+    // if next fontImage already have a texture
+    if (ctx->fontImages[ctx->fontImageIdx+1] != 0)
+        nvgImageSize(ctx, ctx->fontImages[ctx->fontImageIdx+1], &iw, &ih);
+    else { // calculate the new font image size and create it.
+        nvgImageSize(ctx, ctx->fontImages[ctx->fontImageIdx], &iw, &ih);
+        if (iw > ih)
+            ih *= 2;
+        else
+            iw *= 2;
+        if (iw > NVG_MAX_FONTIMAGE_SIZE || ih > NVG_MAX_FONTIMAGE_SIZE)
+            iw = ih = NVG_MAX_FONTIMAGE_SIZE;
+        ctx->fontImages[ctx->fontImageIdx+1] = ctx->params.renderCreateTexture(ctx->params.userPtr, NVG_TEXTURE_RGBA, iw, ih, 0, NULL);
+    }
+    ++ctx->fontImageIdx;
+    fonsResetAtlas(ctx->fs, iw, ih);
+    return 1;
 }
 
-static void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts)
+static void nvg__renderText(NVGcontext* ctx, NVGvertex* verts, int nverts, NVGpaint paint)
 {
-	NVGstate* state = nvg__getState(ctx);
-	NVGpaint paint = state->fill;
+    NVGstate* state = nvg__getState(ctx);
 
-	// Render triangles.
-	paint.image = ctx->fontImages[ctx->fontImageIdx];
+    // Set the paint image to the current font texture
+    paint.image = ctx->fontImages[ctx->fontImageIdx];
 
-	// Apply global alpha
-	paint.innerColor.a *= state->alpha;
-	paint.outerColor.a *= state->alpha;
+    // Apply global alpha to the paint (already set in nvgText for color/non-color cases)
+    ctx->params.renderTriangles(ctx->params.userPtr, &paint, state->compositeOperation, &state->scissor, verts, nverts, ctx->fringeWidth);
 
-	ctx->params.renderTriangles(ctx->params.userPtr, &paint, state->compositeOperation, &state->scissor, verts, nverts, ctx->fringeWidth);
+    ctx->drawCallCount++;
+    ctx->textTriCount += nverts/3;
+}
 
-	ctx->drawCallCount++;
-	ctx->textTriCount += nverts/3;
+const char *nvgFontTexture( NVGcontext* ctx, int *width, int *height ) {
+	return fonsGetTextureData(ctx->fs, width, height);
 }
 
 float nvgText(NVGcontext* ctx, float x, float y, const char* string, const char* end)
 {
-	NVGstate* state = nvg__getState(ctx);
-	FONStextIter iter, prevIter;
-	FONSquad q;
-	NVGvertex* verts;
-	float scale = nvg__getFontScale(state) * ctx->devicePxRatio;
-	float invscale = 1.0f / scale;
-	int cverts = 0;
-	int nverts = 0;
+    NVGstate* state = nvg__getState(ctx);
+    FONStextIter iter, prevIter;
+    FONSquad q;
+    NVGvertex* verts;
+    float scale = nvg__getFontScale(state) * ctx->devicePxRatio;
+    float invscale = 1.0f / scale;
+    int cverts = 0;
+    int nverts = 0;
+    int currentIsColor = -1;
+    NVGpaint currentPaint = state->fill;
+    if (end == NULL)
+        end = string + strlen(string);
 
-	if (end == NULL)
-		end = string + strlen(string);
+    if (state->fontId == FONS_INVALID) return x;
 
-	if (state->fontId == FONS_INVALID) return x;
+    fonsSetSize(ctx->fs, state->fontSize*scale);
+    fonsSetSpacing(ctx->fs, state->letterSpacing*scale);
+    fonsSetBlur(ctx->fs, state->fontBlur*scale);
+    fonsSetAlign(ctx->fs, state->textAlign);
+    fonsSetFont(ctx->fs, state->fontId);
 
-	fonsSetSize(ctx->fs, state->fontSize*scale);
-	fonsSetSpacing(ctx->fs, state->letterSpacing*scale);
-	fonsSetBlur(ctx->fs, state->fontBlur*scale);
-	fonsSetAlign(ctx->fs, state->textAlign);
-	fonsSetFont(ctx->fs, state->fontId);
+    cverts = nvg__maxi(2, (int)(end - string)) * 6; // conservative estimate.
+    verts = nvg__allocTempVerts(ctx, cverts);
+    if (verts == NULL) return x;
 
-	cverts = nvg__maxi(2, (int)(end - string)) * 6; // conservative estimate.
-	verts = nvg__allocTempVerts(ctx, cverts);
-	if (verts == NULL) return x;
+    fonsTextIterInit(ctx->fs, &iter, x*scale, y*scale, string, end, FONS_GLYPH_BITMAP_REQUIRED);
+    prevIter = iter;
+    while (fonsTextIterNext(ctx->fs, &iter, &q)) {
+        float c[4*2];
+        if (iter.prevGlyphIndex == -1) { // can not retrieve glyph?
+            if (nverts != 0) {
+                nvg__renderText(ctx, verts, nverts, currentPaint);
+                nverts = 0;
+            }
+            if (!nvg__allocTextAtlas(ctx))
+                break; // no memory :(
+            iter = prevIter;
+            fonsTextIterNext(ctx->fs, &iter, &q); // try again
+            if (iter.prevGlyphIndex == -1) // still can not find glyph?
+                break;
+        }
+        prevIter = iter;
 
-	fonsTextIterInit(ctx->fs, &iter, x*scale, y*scale, string, end, FONS_GLYPH_BITMAP_REQUIRED);
-	prevIter = iter;
-	while (fonsTextIterNext(ctx->fs, &iter, &q)) {
-		float c[4*2];
-		if (iter.prevGlyphIndex == -1) { // can not retrieve glyph?
-			if (nverts != 0) {
-				nvg__renderText(ctx, verts, nverts);
-				nverts = 0;
-			}
-			if (!nvg__allocTextAtlas(ctx))
-				break; // no memory :(
-			iter = prevIter;
-			fonsTextIterNext(ctx->fs, &iter, &q); // try again
-			if (iter.prevGlyphIndex == -1) // still can not find glyph?
-				break;
+        FONSglyph* glyph = fons__getGlyph(ctx->fs, iter.font, iter.codepoint, iter.isize, iter.iblur, FONS_GLYPH_BITMAP_OPTIONAL);
+        int isColor = glyph ? glyph->isColor : 0;
+
+		if (nverts != 0) {
+			nvg__renderText(ctx, verts, nverts, currentPaint);
+			nverts = 0;
 		}
-		prevIter = iter;
-		// Transform corners.
-		nvgTransformPoint(&c[0],&c[1], state->xform, q.x0*invscale, q.y0*invscale);
-		nvgTransformPoint(&c[2],&c[3], state->xform, q.x1*invscale, q.y0*invscale);
-		nvgTransformPoint(&c[4],&c[5], state->xform, q.x1*invscale, q.y1*invscale);
-		nvgTransformPoint(&c[6],&c[7], state->xform, q.x0*invscale, q.y1*invscale);
-		// Create triangles
-		if (nverts+6 <= cverts) {
-			nvg__vset(&verts[nverts], c[0], c[1], q.s0, q.t0); nverts++;
-			nvg__vset(&verts[nverts], c[4], c[5], q.s1, q.t1); nverts++;
-			nvg__vset(&verts[nverts], c[2], c[3], q.s1, q.t0); nverts++;
-			nvg__vset(&verts[nverts], c[0], c[1], q.s0, q.t0); nverts++;
-			nvg__vset(&verts[nverts], c[6], c[7], q.s0, q.t1); nverts++;
-			nvg__vset(&verts[nverts], c[4], c[5], q.s1, q.t1); nverts++;
-		}
-	}
+        if (isColor != currentIsColor) {
+            currentPaint = state->fill;
+            if (isColor) {
+                // For color glyphs, use white to preserve texture colors
+                currentPaint.innerColor = nvgRGBAf(1.0f, 1.0f, 1.0f, 1.0f);
+                currentPaint.outerColor = nvgRGBAf(1.0f, 1.0f, 1.0f, 1.0f);
+            } else {
+                // For grayscale glyphs, apply state alpha to modulate the fill color
+                currentPaint.innerColor.a *= state->alpha;
+                currentPaint.outerColor.a *= state->alpha;
+            }
+            currentIsColor = isColor;
+        }
 
-	// TODO: add back-end bit to do this just once per frame.
-	nvg__flushTextTexture(ctx);
+        // Transform corners.
+        nvgTransformPoint(&c[0],&c[1], state->xform, q.x0*invscale, q.y0*invscale);
+        nvgTransformPoint(&c[2],&c[3], state->xform, q.x1*invscale, q.y0*invscale);
+        nvgTransformPoint(&c[4],&c[5], state->xform, q.x1*invscale, q.y1*invscale);
+        nvgTransformPoint(&c[6],&c[7], state->xform, q.x0*invscale, q.y1*invscale);
+        // Create triangles
+        if (nverts+6 <= cverts) {
+            nvg__vset(&verts[nverts], c[0], c[1], q.s0, q.t0); nverts++;
+            nvg__vset(&verts[nverts], c[4], c[5], q.s1, q.t1); nverts++;
+            nvg__vset(&verts[nverts], c[2], c[3], q.s1, q.t0); nverts++;
+            nvg__vset(&verts[nverts], c[0], c[1], q.s0, q.t0); nverts++;
+            nvg__vset(&verts[nverts], c[6], c[7], q.s0, q.t1); nverts++;
+            nvg__vset(&verts[nverts], c[4], c[5], q.s1, q.t1); nverts++;
+        }
+    }
 
-	nvg__renderText(ctx, verts, nverts);
+    // Flush texture changes
+    nvg__flushTextTexture(ctx);
 
-	return iter.nextx / scale;
+    // Render any remaining vertices
+    if (nverts != 0) {
+        nvg__renderText(ctx, verts, nverts, currentPaint);
+    }
+
+    return iter.nextx / scale;
 }
 
 void nvgTextBox(NVGcontext* ctx, float x, float y, float breakRowWidth, const char* string, const char* end)

@@ -26,6 +26,16 @@ NAMESPACE_BEGIN(nanogui)
  */
 class NANOGUI_EXPORT Label : public Widget {
 public:
+    /// Line breaking modes similar to NSLabel
+    enum class LineBreakMode {
+        BreakByWordWrapping,        ///< Wrap at word boundaries
+        LineBreakByCharWrapping,    ///< Wrap at any character
+        LineBreakByClipping,        ///< Clip text that doesn't fit
+        LineBreakByTruncatingHead,  ///< Truncate from beginning with "..."
+        LineBreakByTruncatingTail,  ///< Truncate from end with "..."
+        LineBreakByTruncatingMiddle ///< Truncate from middle with "..."
+    };
+
     Label(Widget *parent, const std::string &caption,
           const std::string &font = "sans", int font_size = -1);
 
@@ -44,6 +54,11 @@ public:
     /// Set the label color
     void set_color(const Color& color) { m_color = color; }
 
+    /// Get the line break mode
+    LineBreakMode line_break_mode() const { return m_line_break_mode; }
+    /// Set the line break mode
+    void set_line_break_mode(LineBreakMode mode) { m_line_break_mode = mode; }
+
     /// Set the \ref Theme used to draw this widget
     virtual void set_theme(Theme *theme) override;
 
@@ -52,10 +67,32 @@ public:
 
     /// Draw the label
     virtual void draw(NVGcontext *ctx) override;
+
 protected:
+    /// Process text according to the line break mode
+    std::string process_text_for_mode(NVGcontext *ctx, const std::string &text, float available_width) const;
+    
+    /// Wrap text 
+    std::string wrap_by_character(NVGcontext *ctx, const std::string &text, float available_width) const;
+
+    /// Truncate text with ellipsis at the head
+    std::string truncate_head(NVGcontext *ctx, const std::string &text, float available_width) const;
+    
+    /// Truncate text with ellipsis at the tail
+    std::string truncate_tail(NVGcontext *ctx, const std::string &text, float available_width) const;
+    
+    /// Truncate text with ellipsis in the middle
+    std::string truncate_middle(NVGcontext *ctx, const std::string &text, float available_width) const;
+
+	/// Clip text to fit within available width without ellipsis
+    std::string clip_text(NVGcontext *ctx, const std::string &text, float available_width) const;
+
     std::string m_caption;
     std::string m_font;
+    mutable std::string m_processed_text;
     Color m_color;
+    LineBreakMode m_line_break_mode;
 };
 
 NAMESPACE_END(nanogui)
+

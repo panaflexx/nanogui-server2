@@ -193,6 +193,10 @@ void mainloop(float refresh) {
     refresh_thread.join();
 }
 
+
+
+
+
 void async(const std::function<void()> &func) {
     std::lock_guard<std::mutex> guard(m_async_mutex);
     m_async_functions.push_back(func);

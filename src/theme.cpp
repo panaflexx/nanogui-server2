@@ -95,9 +95,13 @@ Theme::Theme(NVGcontext *ctx) {
                                     fontawesome_solid_ttf_size, 0);
     m_font_mono_regular = nvgCreateFontMem(ctx, "mono", (uint8_t *) inconsolata_regular_ttf,
                                            inconsolata_regular_ttf_size, 0);
+    m_font_emoji = nvgCreateFont(ctx, "emoji", "resources/NotoColorEmoji.ttf");
+	printf("m_font_emoji loaded: %d\n", m_font_emoji);
+	
 
     if (m_font_sans_regular == -1 || m_font_sans_bold == -1 ||
-        m_font_icons == -1 || m_font_mono_regular == -1)
+        m_font_icons == -1 || m_font_mono_regular == -1 ||
+		m_font_emoji == -1)
         throw std::runtime_error("Could not load fonts!");
 }
 

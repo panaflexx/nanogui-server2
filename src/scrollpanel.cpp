@@ -28,49 +28,59 @@ ScrollPanel::ScrollPanel(Widget* parent, ScrollTypes scroll_type)
     DebugName = m_parent->DebugName + ",ScrlPnl";
 }
 
-void ScrollPanel::perform_layout(NVGcontext* ctx) {
-    Widget::perform_layout(ctx);
 
+void ScrollPanel::perform_layout(NVGcontext* ctx) {
     if (m_children.empty())
         return;
     if (m_children.size() > 1)
         throw std::runtime_error("ScrollPanel should have one child.");
 
     Widget* child = m_children[0];
-    m_child_preferred_size = child->preferred_size(ctx);
-    m_child_pos = child->position();
+    Vector2i available = m_size;
 
-    Vector2i new_child_pos = Vector2i(0);
-    Vector2i new_child_size = Vector2i(m_size);
+    // FIRST: Give child the available space as a constraint
+    child->set_size(available);
+    child->perform_layout(ctx);
+    
+    // THEN: Get child's preferred size within that constraint
+    Vector2i constrained_preferred = child->preferred_size(ctx);
+    
+    // Update stored preferred size for scrolling calculations
+    m_child_preferred_size = constrained_preferred;
 
-    if (m_child_preferred_size.y() > m_size.y() && VScrollable() && VScrollable()) {
-        new_child_pos.y() = -m_scroll.y() * (m_child_preferred_size.y() - m_size.y());
-        new_child_size.y() = m_child_preferred_size.y();
-    }
-    else
-        m_scroll.y() = 0.f;
+    // Determine final child size:
+    // - If child needs more space than available: give it what it needs (enable scrolling)  
+    // - If child needs less space than available: let it fill the available space
+    int child_height = constrained_preferred.y() > available.y() ? 
+                       constrained_preferred.y() : available.y();
+    int child_width = constrained_preferred.x() > available.x() ? 
+                      constrained_preferred.x() : available.x();
 
-    if (m_child_preferred_size.x() > m_size.x() && HScrollable()) {
-        new_child_pos.x() = -m_scroll.x() * (m_child_preferred_size.x() - m_size.x());
-        new_child_size.x() = m_child_preferred_size.x();
-    }
-    else
-        m_scroll.x() = 0.f;
+    // Position child for scroll amount
+    int offset_x = HScrollable() && constrained_preferred.x() > available.x()
+        ? -(int)(m_scroll.x() * (constrained_preferred.x() - available.x()))
+        : 0;
+    int offset_y = VScrollable() && constrained_preferred.y() > available.y()
+        ? -(int)(m_scroll.y() * (constrained_preferred.y() - available.y()))
+        : 0;
 
-    child->set_position(new_child_pos);
-    child->set_size(new_child_size);
+    child->set_position(Vector2i(offset_x, offset_y));
+    child->set_size(Vector2i(child_width, child_height));
 
+    // Final layout with correct size and position
     child->perform_layout(ctx);
 }
 
 bool ScrollPanel::keyboard_event(int key, int /* scancode */, int action, int modifiers) {
-	printf("keyboard_event: focused=%s\n",
+	printf("keyboard_event: key=%d action=%d focused=%s\n", key, action,
 		focused()?"TRUE":"FALSE");
 
     if (focused()) {
 		if(modifiers == GLFW_MOD_SHIFT)
 			printf("Got shift!\n");
+		return true;
 	}
+	return false;
 }
 
 Vector2i ScrollPanel::preferred_size(NVGcontext* ctx) const {
@@ -209,7 +219,7 @@ void ScrollPanel::draw(NVGcontext* ctx) {
         xoffset = -m_scroll.x() * (m_child_preferred_size.x() - m_size.x());
 
     child->set_position(Vector2i(xoffset, yoffset));
-    m_child_preferred_size = child->preferred_size(ctx);
+    //m_child_preferred_size = child->preferred_size(ctx);
     float scrollw = width() * std::min(1.f, width() / (float)m_child_preferred_size.x());
     float scrollh = height() * std::min(1.f, height() / (float)m_child_preferred_size.y());
 

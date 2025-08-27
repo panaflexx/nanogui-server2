@@ -412,8 +412,8 @@ public:
 
         /// Allows for printing out Anchor position, size, and alignment.
         operator std::string() const {
-            char buf[50];
-            std::snprintf(buf, 50, "Format[pos=(%i, %i), size=(%i, %i), align=(%i, %i)]",
+            char buf[60];
+            std::snprintf(buf, 60, "Format[pos=(%i, %i), size=(%i, %i), align=(%i, %i)]",
                 pos[0], pos[1], size[0], size[1], (int) align[0], (int) align[1]);
             return buf;
         }
@@ -488,5 +488,147 @@ protected:
     /// The margin around this AdvancedGridLayout.
     int m_margin;
 };
+
+/// Flex direction for FlexLayout (equivalent to CSS flex-direction)
+enum class FlexDirection {
+    Row = 0,        ///< Items arranged horizontally, left to right
+    RowReverse,     ///< Items arranged horizontally, right to left  
+    Column,         ///< Items arranged vertically, top to bottom
+    ColumnReverse   ///< Items arranged vertically, bottom to top
+};
+
+/// Justify content for main axis alignment (equivalent to CSS justify-content)
+enum class JustifyContent {
+    FlexStart = 0,  ///< Items packed at start of main axis
+    FlexEnd,        ///< Items packed at end of main axis  
+    Center,         ///< Items centered along main axis
+    SpaceBetween,   ///< Items evenly distributed, first/last at edges
+    SpaceAround,    ///< Items evenly distributed with equal space around
+    SpaceEvenly     ///< Items evenly distributed with equal space between
+};
+
+/// Align items for cross axis alignment (equivalent to CSS align-items)
+enum class AlignItems {
+    FlexStart = 0,  ///< Items aligned at start of cross axis
+    FlexEnd,        ///< Items aligned at end of cross axis
+    Center,         ///< Items centered along cross axis
+    Stretch,        ///< Items stretched to fill cross axis
+    Baseline        ///< Items aligned along their baseline
+};
+
+/// Flex wrap behavior (equivalent to CSS flex-wrap)
+enum class FlexWrap {
+    NoWrap = 0,     ///< Items stay on single line
+    Wrap,           ///< Items wrap to new lines as needed
+    WrapReverse     ///< Items wrap to new lines in reverse order
+};
+
+/**
+ * \class FlexLayout layout.h nanogui/layout.h
+ *
+ * \brief CSS Flexbox-inspired layout manager
+ *
+ * This layout implements the CSS Flexbox model for one-dimensional layout.
+ * Items can be arranged along a main axis with flexible sizing and various
+ * alignment options along both main and cross axes.
+ */
+class NANOGUI_EXPORT FlexLayout : public Layout {
+public:
+    /**
+     * \struct FlexItem layout.h nanogui/layout.h
+     *
+     * \brief Flex properties for individual child widgets
+     */
+    struct FlexItem {
+        float flex_grow = 0.0f;     ///< How much the item should grow (CSS flex-grow)
+        float flex_shrink = 1.0f;   ///< How much the item should shrink (CSS flex-shrink)  
+        int flex_basis = -1;        ///< Initial main size before free space distribution (CSS flex-basis)
+        AlignItems align_self = AlignItems::FlexStart;  ///< Override container align_items for this item
+        
+        FlexItem() = default;
+        FlexItem(float grow, float shrink = 1.0f, int basis = -1) 
+            : flex_grow(grow), flex_shrink(shrink), flex_basis(basis) {}
+    };
+
+    /**
+     * Creates a FlexLayout with specified direction and alignment.
+     *
+     * \param direction The flex direction (main axis orientation)
+     * \param justify_content Main axis alignment
+     * \param align_items Cross axis alignment  
+     * \param margin Margin around the container
+     * \param gap Gap between flex items
+     */
+    FlexLayout(FlexDirection direction = FlexDirection::Row,
+               JustifyContent justify_content = JustifyContent::FlexStart,
+               AlignItems align_items = AlignItems::Stretch,
+               int margin = 0, int gap = 0);
+
+    /// Get the flex direction
+    FlexDirection direction() const { return m_direction; }
+    /// Set the flex direction  
+    void set_direction(FlexDirection direction) { m_direction = direction; }
+
+    /// Get the justify content setting
+    JustifyContent justify_content() const { return m_justify_content; }
+    /// Set the justify content setting
+    void set_justify_content(JustifyContent justify) { m_justify_content = justify; }
+
+    /// Get the align items setting
+    AlignItems align_items() const { return m_align_items; }
+    /// Set the align items setting
+    void set_align_items(AlignItems align) { m_align_items = align; }
+
+    /// Get the flex wrap setting
+    FlexWrap flex_wrap() const { return m_flex_wrap; }
+    /// Set the flex wrap setting
+    void set_flex_wrap(FlexWrap wrap) { m_flex_wrap = wrap; }
+
+    /// Get the margin
+    int margin() const { return m_margin; }
+    /// Set the margin
+    void set_margin(int margin) { m_margin = margin; }
+
+    /// Get the gap between items
+    int gap() const { return m_gap; }
+    /// Set the gap between items  
+    void set_gap(int gap) { m_gap = gap; }
+
+    /// Set flex properties for a specific widget
+    void set_flex_item(const Widget *widget, const FlexItem &item) { m_flex_items[widget] = item; }
+
+    /// Get flex properties for a widget (returns default if not set)
+    FlexItem get_flex_item(const Widget *widget) const {
+        auto it = m_flex_items.find(widget);
+        return it != m_flex_items.end() ? it->second : FlexItem();
+    }
+
+    /* Implementation of the layout interface */
+    virtual Vector2i preferred_size(NVGcontext *ctx, const Widget *widget) const override;
+    virtual void perform_layout(NVGcontext *ctx, Widget *widget) const override;
+
+protected:
+    /// Determine if direction is row-based
+    bool is_row_direction() const { return m_direction == FlexDirection::Row || m_direction == FlexDirection::RowReverse; }
+    
+    /// Determine if direction is reversed  
+    bool is_reverse_direction() const { return m_direction == FlexDirection::RowReverse || m_direction == FlexDirection::ColumnReverse; }
+
+    /// Get main axis index (0 for row, 1 for column)
+    int main_axis() const { return is_row_direction() ? 0 : 1; }
+    
+    /// Get cross axis index  
+    int cross_axis() const { return is_row_direction() ? 1 : 0; }
+
+protected:
+    FlexDirection m_direction;
+    JustifyContent m_justify_content;
+    AlignItems m_align_items;
+    FlexWrap m_flex_wrap;
+    int m_margin;
+    int m_gap;
+    std::unordered_map<const Widget*, FlexItem> m_flex_items;
+};
+
 
 NAMESPACE_END(nanogui)

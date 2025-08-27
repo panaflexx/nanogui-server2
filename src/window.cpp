@@ -289,7 +289,7 @@ bool Window::mouse_drag_event(const Vector2i& p, const Vector2i& rel, int button
     }
     else if (m_resizable && m_resize && (button & (1 << GLFW_MOUSE_BUTTON_1)) != 0) {
         const Vector2i& lowerRightCorner = m_pos + m_size;
-        const Vector2i& upperLeftCorner = m_pos;
+        //const Vector2i& upperLeftCorner = m_pos;
         NVGcontext* ctx = static_cast<Screen*>(parent())->nvg_context();
         bool resized = false;
 

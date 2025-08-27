@@ -147,7 +147,7 @@ public:
         return Window::mouse_drag_event(p, rel, button, modifiers);
     }
 
-	virtual bool mouse_motion_event(const Vector2i& p, const Vector2i& rel, int button, int modifiers) {
+	virtual bool mouse_motion_event(const Vector2i& p, const Vector2i& rel, int button, int modifiers) override {
 		return Window::mouse_motion_event( p, rel, button, modifiers );
 	}
     
@@ -192,7 +192,8 @@ protected:
 
 class JsonGuiApplication : public Screen {
 private:
-    
+	EventWindow* m_rootWindow = nullptr;
+
     // Extract and validate ID from JSON object
     std::string extractId(DictValue* jsonObj) {
         DictValue* idVal = dict_object_get(jsonObj, "id");
@@ -224,39 +225,52 @@ private:
         std::string widgetType = typeVal->string_value;
         Widget* widget = nullptr;
         
-        if (widgetType == "Window") {
-            // Get title
-            std::string title = "Untitled";
-            DictValue* titleVal = dict_object_get(jsonObj, "title");
-            if (titleVal && titleVal->type == DICT_STRING) {
-                title = titleVal->string_value;
-            }
+		if (widgetType == "Window") {
+			// Get title
+			std::string title = "";
+			DictValue* titleVal = dict_object_get(jsonObj, "title");
+			if (titleVal && titleVal->type == DICT_STRING) {
+				title = titleVal->string_value;
+			}
+
 			bool resizable = false;  // Default to false
 			DictValue* resizableVal = dict_object_get(jsonObj, "resizable");
 			if (resizableVal && resizableVal->type == DICT_BOOL) {
 				resizable = resizableVal->bool_value != 0;
 			}
-            
-            EventWindow* window = new EventWindow(this, title, id, resizable);
-            widget = window;
-            
-            // Set dimensions if specified
-            DictValue* widthVal = dict_object_get(jsonObj, "width");
-            DictValue* heightVal = dict_object_get(jsonObj, "height");
-            if (widthVal && heightVal) {
-                int width = 400, height = 300;
-                if (widthVal->type == DICT_NUMBER) width = (int)widthVal->number_value;
-                if (widthVal->type == DICT_INT64) width = (int)widthVal->int64_value;
-                if (heightVal->type == DICT_NUMBER) height = (int)heightVal->number_value;
-                if (heightVal->type == DICT_INT64) height = (int)heightVal->int64_value;
-                
-                window->set_fixed_size(Vector2i(width, height));
-            }
 
+			EventWindow* window = new EventWindow(this, title, id, resizable);
+			widget = window;
+
+			// Check for "rootWindow" key
+			DictValue* rootWindowVal = dict_object_get(jsonObj, "rootWindow");
+			bool isRootWindow = rootWindowVal && rootWindowVal->type == DICT_BOOL && rootWindowVal->bool_value;
+
+			if (isRootWindow) {
+				// Set window size to match Screen size exactly
+				Vector2i screenSize = this->size();
+				window->set_fixed_size(screenSize);
+				m_rootWindow = window;
+			} else {
+				// Set dimensions if specified
+				DictValue* widthVal = dict_object_get(jsonObj, "width");
+				DictValue* heightVal = dict_object_get(jsonObj, "height");
+				if (widthVal && heightVal) {
+					int width = 400, height = 300;
+					if (widthVal->type == DICT_NUMBER) width = (int)widthVal->number_value;
+					if (widthVal->type == DICT_INT64) width = (int)widthVal->int64_value;
+					if (heightVal->type == DICT_NUMBER) height = (int)heightVal->number_value;
+					if (heightVal->type == DICT_INT64) height = (int)heightVal->int64_value;
+
+					window->set_fixed_size(Vector2i(width, height));
+				}
+			}
+
+			// Layout setup here stays the same...
 			DictValue* layoutVal = dict_object_get(jsonObj, "layout");
 			if (layoutVal && layoutVal->type == DICT_STRING) {
 				std::string layoutType = layoutVal->string_value;
-				
+
 				if (layoutType == "GroupLayout") {
 					window->set_layout(new GroupLayout());
 				} else if (layoutType == "VBoxLayout") {
@@ -266,15 +280,13 @@ private:
 				} else if (layoutType == "default") {
 					window->set_layout(new GroupLayout());
 				} else {
-					// Unknown layout type, use default
-					std::cout << "Warning: Unknown layout type '" << layoutType << "' for window, using GroupLayout" << std::endl;
+					std::cout << "Warning: Unknown layout type '" << layoutType << "', using GroupLayout" << std::endl;
 					window->set_layout(new GroupLayout());
 				}
 			} else {
 				window->set_layout(new GroupLayout());
 			}
-            
-        } else if (widgetType == "View") {
+		} else if (widgetType == "View") {
             widget = new EventWidget(parent, id);
             
             // Set layout if specified
@@ -453,11 +465,21 @@ public:
             
             // Perform layout
             perform_layout();
+
             
         } catch (const std::exception& e) {
             std::cerr << "Error: " << e.what() << std::endl;
         }
     }
+
+	virtual bool resize_event(const Vector2i& size) override {
+		if (m_rootWindow) {
+			m_rootWindow->set_fixed_size(size);
+			perform_layout();  // update layouts accordingly
+		}
+		Screen::resize_event(size);
+		return true;
+	}
     
     virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
         if (Screen::keyboard_event(key, scancode, action, modifiers))

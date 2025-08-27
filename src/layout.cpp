@@ -169,7 +169,7 @@ Vector2i GroupLayout::preferred_size(NVGcontext* ctx, const Widget* widget) cons
 void GroupLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     int height = m_margin;
     int available_width = (widget->fixed_width() ? widget->fixed_width() : widget->width()) - 2 * m_margin;
-    int available_height = (widget->fixed_height() ? widget->fixed_height() : widget->height()) - 2 * m_margin;
+    //int available_height = (widget->fixed_height() ? widget->fixed_height() : widget->height()) - 2 * m_margin;
 
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())
@@ -435,6 +435,7 @@ void AdvancedGridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     }
 }
 
+
 void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
     std::vector<int>* _grid) const {
     Vector2i fs_w = widget->fixed_size();
@@ -464,7 +465,61 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
                 const Anchor& anchor = pair.second;
                 if ((anchor.size[axis] == 1) != (phase == 0))
                     continue;
-                int ps = w->preferred_size(ctx)[axis], fs = w->fixed_size()[axis];
+
+                int ps, fs = w->fixed_size()[axis];
+                
+                // ALIGNMENT-BASED WIDTH CONSTRAINT
+                if (!fs && axis == 0) { // No fixed width and we're calculating width
+                    Alignment align = anchor.align[axis];
+                    
+                    // Calculate available space for this widget's span
+                    int available_space = container_size[axis];
+                    if (anchor.size[axis] > 1) {
+                        // For multi-span widgets, allocate proportionally
+                        available_space = (container_size[axis] * anchor.size[axis]) / std::max(1, (int)m_cols.size());
+                    } else {
+                        // For single-span widgets, use average column width
+                        available_space = container_size[axis] / std::max(1, (int)m_cols.size());
+                    }
+                    
+                    // Determine constraint based on alignment intent
+                    int max_width_constraint;
+                    switch (align) {
+                        case Alignment::Fill:
+                            // Widget will be resized to fill cell - constrain more aggressively
+                            max_width_constraint = std::max(50, available_space);
+                            break;
+                        case Alignment::Minimum:
+                        case Alignment::Maximum:
+                        case Alignment::Middle:
+                            // Widget keeps preferred size - be more generous but still reasonable
+                            max_width_constraint = std::max(100, (int)(available_space * 1.2f));
+                            break;
+                    }
+                    
+                    // Apply constraint for flexible widgets (like Labels)
+                    const Label* label = dynamic_cast<const Label*>(w);
+                    if (label) {
+                        Widget* non_const_w = const_cast<Widget*>(w);
+                        Vector2i original_size = non_const_w->size();
+                        
+                        // Temporarily set width constraint for preferred size calculation
+                        non_const_w->set_size(Vector2i(max_width_constraint, original_size.y()));
+                        non_const_w->perform_layout(ctx);
+                        ps = w->preferred_size(ctx)[axis];
+                        
+                        // Restore original size
+                        non_const_w->set_size(original_size);
+                    } else {
+                        ps = w->preferred_size(ctx)[axis];
+                        // Still cap non-label widgets reasonably
+                        ps = std::min(ps, max_width_constraint);
+                    }
+                } else {
+                    // For height or fixed-width widgets, use normal preferred size
+                    ps = w->preferred_size(ctx)[axis];
+                }
+                
                 int target_size = fs ? fs : ps;
 
                 if (anchor.pos[axis] + anchor.size[axis] > (int)grid.size())
@@ -494,13 +549,298 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
             }
         }
 
+        // Final stretch distribution - ensure we don't exceed container bounds
         int current_size = std::accumulate(grid.begin(), grid.end(), 0);
         float total_stretch = std::accumulate(stretch.begin(), stretch.end(), 0.0f);
-        if (current_size >= container_size[axis] || total_stretch == 0)
-            continue;
-        float amt = (container_size[axis] - current_size) / total_stretch;
-        for (size_t i = 0; i < grid.size(); ++i)
-            grid[i] += (int)std::round(amt * stretch[i]);
+        if (current_size < container_size[axis] && total_stretch > 0) {
+            float amt = (container_size[axis] - current_size) / total_stretch;
+            for (size_t i = 0; i < grid.size(); ++i)
+                grid[i] += (int)std::round(amt * stretch[i]);
+        }
+    }
+}
+
+FlexLayout::FlexLayout(FlexDirection direction, JustifyContent justify_content, 
+                       AlignItems align_items, int margin, int gap)
+    : m_direction(direction), m_justify_content(justify_content), 
+      m_align_items(align_items), m_flex_wrap(FlexWrap::NoWrap),
+      m_margin(margin), m_gap(gap) {
+}
+
+Vector2i FlexLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const {
+    Vector2i size(2 * m_margin);
+    
+    // Account for window header
+    int y_offset = 0;
+    const Window *window = dynamic_cast<const Window*>(widget);
+    if (window && !window->title().empty()) {
+        if (!is_row_direction())
+            size[1] += widget->theme()->m_window_header_height - m_margin / 2;
+        else
+            y_offset = widget->theme()->m_window_header_height;
+    }
+
+    // Collect visible children
+    std::vector<Widget*> visible_children;
+    for (auto child : widget->children()) {
+        if (child->visible())
+            visible_children.push_back(child);
+    }
+
+    if (visible_children.empty())
+        return size + Vector2i(0, y_offset);
+
+    int main_axis_idx = main_axis();
+    int cross_axis_idx = cross_axis();
+    
+    int total_main_size = 0;
+    int max_cross_size = 0;
+    
+    for (size_t i = 0; i < visible_children.size(); ++i) {
+        Widget *child = visible_children[i];
+        Vector2i child_pref = child->preferred_size(ctx);
+        Vector2i child_fixed = child->fixed_size();
+        
+        FlexItem flex_item = get_flex_item(child);
+        
+        // Main axis size
+        int main_size = child_fixed[main_axis_idx] ? child_fixed[main_axis_idx] : 
+                       (flex_item.flex_basis >= 0 ? flex_item.flex_basis : child_pref[main_axis_idx]);
+        total_main_size += main_size;
+        
+        // Cross axis size  
+        int cross_size = child_fixed[cross_axis_idx] ? child_fixed[cross_axis_idx] : child_pref[cross_axis_idx];
+        max_cross_size = std::max(max_cross_size, cross_size);
+        
+        // Add gap (except for last item)
+        if (i < visible_children.size() - 1)
+            total_main_size += m_gap;
+    }
+    
+    size[main_axis_idx] += total_main_size;
+    size[cross_axis_idx] += max_cross_size;
+    
+    Vector2i result = size + Vector2i(0, y_offset);
+    
+    // Apply fixed size constraints
+    if (widget->fixed_size().x() != 0) result.x() = widget->fixed_size().x();
+    if (widget->fixed_size().y() != 0) result.y() = widget->fixed_size().y();
+    
+    return result;
+}
+
+void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
+    Vector2i container_size = widget->size();
+    Vector2i fs_w = widget->fixed_size();
+    if (fs_w.x()) container_size.x() = fs_w.x();
+    if (fs_w.y()) container_size.y() = fs_w.y();
+
+    int y_offset = 0;
+    const Window *window = dynamic_cast<const Window*>(widget);
+    if (window && !window->title().empty()) {
+        if (!is_row_direction()) {
+            container_size.y() -= widget->theme()->m_window_header_height - m_margin / 2;
+        } else {
+            y_offset = widget->theme()->m_window_header_height;
+            container_size.y() -= y_offset;
+        }
+    }
+
+    // Collect visible children
+    std::vector<Widget*> visible_children;
+    for (auto child : widget->children()) {
+        if (child->visible())
+            visible_children.push_back(child);
+    }
+
+    if (visible_children.empty())
+        return;
+
+    int main_axis_idx = main_axis();
+    int cross_axis_idx = cross_axis();
+    
+    // Available space for flex items (subtract margins)
+    int available_main_space = container_size[main_axis_idx] - 2 * m_margin;
+    int available_cross_space = container_size[cross_axis_idx] - 2 * m_margin;
+    
+    // Calculate base sizes and collect flex info
+    std::vector<int> base_sizes;
+    std::vector<int> final_sizes;
+    float total_flex_grow = 0.0f;
+    float total_flex_shrink_scaled = 0.0f;
+    int total_base_size = 0;
+    int total_gaps = std::max(0, (int)visible_children.size() - 1) * m_gap;
+    
+    for (Widget *child : visible_children) {
+        Vector2i child_pref = child->preferred_size(ctx);
+        Vector2i child_fixed = child->fixed_size();
+        FlexItem flex_item = get_flex_item(child);
+        
+        int base_size;
+        if (child_fixed[main_axis_idx]) {
+            base_size = child_fixed[main_axis_idx];
+        } else if (flex_item.flex_basis >= 0) {
+            base_size = flex_item.flex_basis;
+        } else {
+            base_size = child_pref[main_axis_idx];
+        }
+        
+        base_sizes.push_back(base_size);
+        total_base_size += base_size;
+        total_flex_grow += flex_item.flex_grow;
+        total_flex_shrink_scaled += flex_item.flex_shrink * base_size;
+    }
+    
+    // Resolve flexible lengths[4]
+    int remaining_space = available_main_space - total_base_size - total_gaps;
+    
+    for (size_t i = 0; i < visible_children.size(); ++i) {
+        FlexItem flex_item = get_flex_item(visible_children[i]);
+        int final_size = base_sizes[i];
+        
+        if (remaining_space > 0 && total_flex_grow > 0) {
+            // Distribute positive space via flex-grow
+            float grow_factor = flex_item.flex_grow / total_flex_grow;
+            final_size += (int)(remaining_space * grow_factor);
+        } else if (remaining_space < 0 && total_flex_shrink_scaled > 0) {
+            // Distribute negative space via flex-shrink  
+            float shrink_factor = (flex_item.flex_shrink * base_sizes[i]) / total_flex_shrink_scaled;
+            final_size += (int)(remaining_space * shrink_factor);
+            final_size = std::max(0, final_size); // Don't allow negative sizes
+        }
+        
+        final_sizes.push_back(final_size);
+    }
+    
+    // Position items along main axis based on justify_content[2][3]
+    std::vector<int> positions;
+    int current_pos = m_margin;
+    
+    switch (m_justify_content) {
+        case JustifyContent::FlexStart:
+            for (size_t i = 0; i < visible_children.size(); ++i) {
+                positions.push_back(current_pos);
+                current_pos += final_sizes[i] + (i < visible_children.size() - 1 ? m_gap : 0);
+            }
+            break;
+            
+        case JustifyContent::FlexEnd: {
+            int total_used = std::accumulate(final_sizes.begin(), final_sizes.end(), 0) + total_gaps;
+            current_pos = available_main_space + m_margin - total_used;
+            for (size_t i = 0; i < visible_children.size(); ++i) {
+                positions.push_back(current_pos);
+                current_pos += final_sizes[i] + (i < visible_children.size() - 1 ? m_gap : 0);
+            }
+            break;
+        }
+        
+        case JustifyContent::Center: {
+            int total_used = std::accumulate(final_sizes.begin(), final_sizes.end(), 0) + total_gaps;
+            current_pos = m_margin + (available_main_space - total_used) / 2;
+            for (size_t i = 0; i < visible_children.size(); ++i) {
+                positions.push_back(current_pos);
+                current_pos += final_sizes[i] + (i < visible_children.size() - 1 ? m_gap : 0);
+            }
+            break;
+        }
+        
+        case JustifyContent::SpaceBetween: {
+            if (visible_children.size() == 1) {
+                positions.push_back(m_margin);
+            } else {
+                int total_item_size = std::accumulate(final_sizes.begin(), final_sizes.end(), 0);
+                int space_between = (available_main_space - total_item_size) / ((int)visible_children.size() - 1);
+                current_pos = m_margin;
+                for (size_t i = 0; i < visible_children.size(); ++i) {
+                    positions.push_back(current_pos);
+                    current_pos += final_sizes[i] + space_between;
+                }
+            }
+            break;
+        }
+        
+        case JustifyContent::SpaceAround: {
+            int total_item_size = std::accumulate(final_sizes.begin(), final_sizes.end(), 0);
+            int space_around = (available_main_space - total_item_size) / (2 * (int)visible_children.size());
+            current_pos = m_margin + space_around;
+            for (size_t i = 0; i < visible_children.size(); ++i) {
+                positions.push_back(current_pos);
+                current_pos += final_sizes[i] + 2 * space_around;
+            }
+            break;
+        }
+        
+        case JustifyContent::SpaceEvenly: {
+            int total_item_size = std::accumulate(final_sizes.begin(), final_sizes.end(), 0);
+            int space_evenly = (available_main_space - total_item_size) / ((int)visible_children.size() + 1);
+            current_pos = m_margin + space_evenly;
+            for (size_t i = 0; i < visible_children.size(); ++i) {
+                positions.push_back(current_pos);
+                current_pos += final_sizes[i] + space_evenly;
+            }
+            break;
+        }
+    }
+    
+    // Handle reverse directions
+    if (is_reverse_direction()) {
+        std::reverse(positions.begin(), positions.end());
+        std::reverse(final_sizes.begin(), final_sizes.end());
+        // Adjust positions for reverse
+        for (size_t i = 0; i < positions.size(); ++i) {
+            positions[i] = container_size[main_axis_idx] - positions[i] - final_sizes[i];
+        }
+    }
+    
+    // Apply positions and sizes to children
+    for (size_t i = 0; i < visible_children.size(); ++i) {
+        Widget *child = visible_children[i];
+        Vector2i child_pos = child->position();
+        Vector2i child_size = child->size();
+        FlexItem flex_item = get_flex_item(child);
+        
+        // Set main axis position and size
+        child_pos[main_axis_idx] = positions[i];
+        child_size[main_axis_idx] = final_sizes[i];
+        
+        // Handle cross axis alignment
+        Vector2i child_pref = child->preferred_size(ctx);
+        Vector2i child_fixed = child->fixed_size();
+        
+        AlignItems align = (flex_item.align_self != AlignItems::FlexStart) ? flex_item.align_self : m_align_items;
+        int cross_size = child_fixed[cross_axis_idx] ? child_fixed[cross_axis_idx] : child_pref[cross_axis_idx];
+        
+        switch (align) {
+            case AlignItems::FlexStart:
+                child_pos[cross_axis_idx] = m_margin;
+                child_size[cross_axis_idx] = cross_size;
+                break;
+            case AlignItems::FlexEnd:
+                child_pos[cross_axis_idx] = container_size[cross_axis_idx] - cross_size - m_margin;
+                child_size[cross_axis_idx] = cross_size;
+                break;
+            case AlignItems::Center:
+                child_pos[cross_axis_idx] = m_margin + (available_cross_space - cross_size) / 2;
+                child_size[cross_axis_idx] = cross_size;
+                break;
+            case AlignItems::Stretch:
+                child_pos[cross_axis_idx] = m_margin;
+                child_size[cross_axis_idx] = child_fixed[cross_axis_idx] ? child_fixed[cross_axis_idx] : available_cross_space;
+                break;
+            case AlignItems::Baseline:
+                // Simplified baseline alignment (treat as flex-start for now)
+                child_pos[cross_axis_idx] = m_margin;
+                child_size[cross_axis_idx] = cross_size;
+                break;
+        }
+        
+        // Apply y_offset for window headers
+        if (y_offset > 0)
+            child_pos.y() += y_offset;
+            
+        child->set_position(child_pos);
+        child->set_size(child_size);
+        child->perform_layout(ctx);
     }
 }
 

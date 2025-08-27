@@ -34,7 +34,7 @@ PopupButton::~PopupButton()
 {
 	// m_popup must be manually disposed
 	// since it isn't in the widget tree
-	this->set_pushed(false);
+	//this->set_pushed(false);
 	this->m_popup->dispose();
 }
 

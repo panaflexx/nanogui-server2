@@ -39,6 +39,8 @@ public:
     int m_font_icons;
     /// The monospace font face (default: ``"mono"`` from ``resources/inconsolata_regular.ttf``).
     int m_font_mono_regular;
+    /// The monospace font face (default: ``"emoji"`` from ``resources/NotoColorEmoji.ttf``).
+    int m_font_emoji;
     /**
      * The amount of scaling that is applied to each icon to fit the size of
      * NanoGUI widgets.  The default value is ``0.77f``, setting to e.g. higher

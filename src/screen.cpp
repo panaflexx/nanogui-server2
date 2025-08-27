@@ -851,7 +851,7 @@ void Screen::mouse_button_callback_event(int button, int action, int modifiers) 
             int Size = m_popup_visible.size();
             for (int Cnt = 0; Cnt < Size; Cnt++)
             {
-                m_popup_visible.front()->set_pushed(false);
+                //m_popup_visible.front()->set_pushed(false);
                 m_popup_visible.pop_front();
             }
             m_redraw = true;
@@ -940,8 +940,23 @@ void Screen::resize_callback_event(int, int) {
 }
 
 void Screen::update_focus(Widget* widget) {
+    m_focus_path.clear();
+    Widget* window = nullptr;
+    while (widget) {
+        m_focus_path.push_back(widget);
+        if (dynamic_cast<Window*>(widget))
+            window = widget;
+        widget = widget->parent();
+    }
+    for (auto it = m_focus_path.rbegin(); it != m_focus_path.rend(); ++it)
+        (*it)->focus_event(true);
+    if (window)
+        move_window_to_front((Window*)window);
+}
+
+/*void Screen::update_focus(Widget* widget) {
     for (auto w : m_focus_path) {
-        if (!w->focused())
+        if (w == nullptr || !w->focused())
             continue;
         w->focus_event(false);
     }
@@ -958,7 +973,7 @@ void Screen::update_focus(Widget* widget) {
 
     if (window)
         move_window_to_front((Window*)window);
-}
+}*/
 
 void Screen::dispose_window(Window* window) {
     if (std::find(m_focus_path.begin(), m_focus_path.end(), window) != m_focus_path.end())

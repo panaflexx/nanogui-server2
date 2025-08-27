@@ -182,6 +182,7 @@ public:
         b->set_tooltip("This button has a fairly long tooltip. It is so long, in "
             "fact, that the shown text will span several lines.");
 
+        new Label(ButtonDemoWindow, "🐺💺💆🐡🐛", "emoji");
 
         new Label(ButtonDemoWindow, "Toggle buttons", "sans-bold");
         b = new Button(ButtonDemoWindow, "Toggle me");
@@ -926,7 +927,7 @@ int main(int /* argc */, char** /* argv */) {
             app->dec_ref();
             app->draw_all();
             app->set_visible(true);
-            nanogui::mainloop(1 / 20.f * 1000);
+            nanogui::mainloop(1 / 30.f * 1000);
         }
 
         nanogui::shutdown();

@@ -596,6 +596,8 @@ extern NVG_EXPORT void nvgFontFaceId(NVGcontext* ctx, int font);
 // Sets the font face based on specified name of current text style.
 extern NVG_EXPORT void nvgFontFace(NVGcontext* ctx, const char* font);
 
+extern NVG_EXPORT const char* nvgFontTexture(NVGcontext* ctx, int *width, int *height);
+
 // Draws text string at specified location. If end is specified only the sub-string up to the end is drawn.
 extern NVG_EXPORT float nvgText(NVGcontext* ctx, float x, float y, const char* string, const char* end);
 
@@ -634,6 +636,8 @@ extern NVG_EXPORT int nvgTextBreakLines(NVGcontext* ctx, const char* string, con
 enum NVGtexture {
 	NVG_TEXTURE_ALPHA = 0x01,
 	NVG_TEXTURE_RGBA = 0x02,
+	NVG_TEXTURE_ARRAY_ALPHA = 0x03,   // NOT IMPLEMENTED
+    NVG_TEXTURE_ARRAY_RGBA = 0x04,	  // NOT IMPLEMENTED
 };
 
 struct NVGscissor {

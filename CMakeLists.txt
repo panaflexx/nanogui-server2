@@ -57,6 +57,7 @@ option(NANOGUI_BUILD_PYTHON              "Build a Python plugin for NanoGUI?" ${
 option(NANOGUI_BUILD_GLAD                "Build GLAD OpenGL loader library? (needed on Windows)" ${NANOGUI_BUILD_GLAD_DEFAULT})
 option(NANOGUI_BUILD_GLFW                "Build GLFW?" ${NANOGUI_BUILD_GLFW_DEFAULT})
 option(NANOGUI_INSTALL                   "Install NanoGUI on `make install`?" ON)
+option(NANOGUI_USE_FREETYPE				 "Build with Freetype2" ON)
 
 if (NOT NANOGUI_BACKEND)
   if (CMAKE_SYSTEM_PROCESSOR MATCHES "armv7" OR
@@ -272,6 +273,15 @@ if (NANOGUI_USE_FREETYPE)
 	find_package(Freetype REQUIRED)
     list(APPEND NANOGUI_LIBS ${FREETYPE_LIBRARIES})
 	include_directories(${FREETYPE_INCLUDE_DIRS})
+
+	find_package(PkgConfig)
+	pkg_check_modules(HARFBUZZ harfbuzz)
+	if (HARFBUZZ_FOUND)
+	  message(STATUS "HARFBUZZ_LIBRARIES (pkg-config): ${HARFBUZZ_LIBRARIES}")
+	  message(STATUS "HARFBUZZ_INCLUDE_DIRS (pkg-config): ${HARFBUZZ_INCLUDE_DIRS}")
+	  list(APPEND NANOGUI_LIBS ${HARFBUZZ_LIBRARIES})
+	  include_directories(${HARFBUZZ_INCLUDE_DIRS})
+	endif()
 endif()
 
 # Run simple cmake converter to put font files into the data segment
@@ -480,6 +490,10 @@ if (NANOGUI_BUILD_EXAMPLES)
   add_executable(example4      src/example4.cpp)
   add_executable(example_icons src/example_icons.cpp)
   add_executable(ngserver      ngserver.cpp)
+  add_executable(amail         amail.cpp)
+  add_executable(amail_folder  amail_folder.cpp)
+  add_executable(nslabels      nslabels.cpp)
+  add_executable(nanovg-colorfont-atlas nanovg-colorfont-atlas.cpp)
 
   target_link_libraries(example1      nanogui)
   target_link_libraries(example2      nanogui)
@@ -487,6 +501,10 @@ if (NANOGUI_BUILD_EXAMPLES)
   target_link_libraries(example4      nanogui)
   target_link_libraries(example_icons nanogui)
   target_link_libraries(ngserver      nanogui)
+  target_link_libraries(amail         nanogui)
+  target_link_libraries(amail_folder  nanogui)
+  target_link_libraries(nslabels      nanogui)
+  target_link_libraries(nanovg-colorfont-atlas nanogui ${NANOGUI_LIBS})
 
   # Copy icons for example application
   file(COPY resources/icons DESTINATION ${CMAKE_CURRENT_BINARY_DIR})

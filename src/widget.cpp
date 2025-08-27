@@ -264,7 +264,7 @@ void Widget::draw(NVGcontext* ctx) {
 
     nvgTranslate(ctx, m_pos.x(), m_pos.y());
 
-    int NumChild = m_children.size();
+    //int NumChild = m_children.size();
 
     for (auto child : m_children) {
         if (!child->visible())
