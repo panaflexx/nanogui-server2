@@ -7,6 +7,8 @@ using namespace nanogui;
 
 class CarSalesApp : public Screen {
 public:
+	Window *m_rootWindow = nullptr;
+
     CarSalesApp() : Screen(Vector2i(800, 600), "Car Dealership Sales Entry", true) {
 		inc_ref();
         // Initialize theme with m_nvg_context
@@ -49,10 +51,13 @@ public:
         Window* window = new Window(this, WindowConfig{
             .title = "", // No title so no window decoration
             .position = Vector2i(0, 0),
-            .size = this->size(),
+            .size = Vector2i(300,420),
             .resizable = true,
             .layout = new FlexLayout(FlexDirection::Column, JustifyContent::FlexStart, AlignItems::Stretch, 10, 10)
         });	
+		perform_layout();
+		window->set_size( this->size() );
+		m_rootWindow = window; // For resizing 
 
         // Menu bar
         Widget* menuBar = new Widget(window);
@@ -203,6 +208,17 @@ public:
         perform_layout(m_nvg_context);
         window->center();
     }
+
+	// Makes background window resize with system window (screen)
+    virtual bool resize_event(const Vector2i &size) override {
+        if (m_rootWindow) {
+            m_rootWindow->set_fixed_size(size);
+            perform_layout(); 
+        }
+        Screen::resize_event(size);
+        return true;
+    }
+
 
 private:
     TextBox* customerName;
