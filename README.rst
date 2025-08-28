@@ -90,6 +90,10 @@ Example screenshot
    :alt: Screenshot of Example 2.
    :align: center
 
+.. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot4.png
+   :alt: Screenshot of Example 3.
+   :align: center
+
 Description
 ----------------------------------------------------------------------------------------
 
