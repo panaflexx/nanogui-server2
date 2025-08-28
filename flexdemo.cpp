@@ -54,7 +54,9 @@ public:
             .size = Vector2i(300,420),
             .resizable = true,
             .layout = new FlexLayout(FlexDirection::Column, JustifyContent::FlexStart, AlignItems::Stretch, 10, 10)
-        });	
+        });
+		// Set a window size (min), perform layout, then set a new size (regular) to 
+		// set the window minimum size.	
 		perform_layout();
 		window->set_size( this->size() );
 		m_rootWindow = window; // For resizing 
@@ -92,12 +94,17 @@ public:
         formContainer->set_layout(new FlexLayout(FlexDirection::Column, JustifyContent::FlexStart, AlignItems::Stretch, 10, 10));
 
         // Customer Information Section
-        Label* customerLabel = new Label(formContainer, "Customer Information 🧑");
-        customerLabel->set_font_size(20);
+        Widget* custRow = new Widget(formContainer);
+        custRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Stretch, 5, 5));
+        Label* customerLabel = new Label(custRow, "Customer Information 🧑");
+        customerLabel->set_font_size(30);
         customerLabel->set_font("sans-bold");
+        Label* customerLabel2 = new Label(custRow, "🧑");
+        customerLabel2->set_font_size(30);
+        customerLabel2->set_font("emoji");
         
         Widget* nameRow = new Widget(formContainer);
-        nameRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
+        nameRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Stretch, 5, 5));
         new Label(nameRow, "Name:");
         customerName = new TextBox(nameRow,"");
         customerName->set_fixed_width(300);

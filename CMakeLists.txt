@@ -493,6 +493,7 @@ if (NANOGUI_BUILD_EXAMPLES)
   add_executable(nslabels      nslabels.cpp)
   add_executable(nanovg-colorfont-atlas nanovg-colorfont-atlas.cpp)
   add_executable(flexdemo 	   flexdemo.cpp)
+  add_executable(flextest 	   flextest.cpp)
 
   target_link_libraries(example1      nanogui)
   target_link_libraries(example2      nanogui)
@@ -502,6 +503,7 @@ if (NANOGUI_BUILD_EXAMPLES)
   target_link_libraries(ngserver      nanogui)
   target_link_libraries(nslabels      nanogui)
   target_link_libraries(flexdemo	  nanogui)
+  target_link_libraries(flextest	  nanogui)
   target_link_libraries(nanovg-colorfont-atlas nanogui ${NANOGUI_LIBS})
 
   # Copy icons for example application
