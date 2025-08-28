@@ -79,6 +79,9 @@ Example screenshot
 .. image:: https://raw.githubusercontent.com/panaflexx/nanogui-server2/master/resources/screenshot.png
    :alt: Screenshot of Example 1.
    :align: center
+.. image:: https://raw.githubusercontent.com/panaflexx/nanogui-server2/master/resources/screenshot3.png
+   :alt: Screenshot of Example 2.
+   :align: center
 
 Description
 ----------------------------------------------------------------------------------------
