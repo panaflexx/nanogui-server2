@@ -692,6 +692,24 @@ MenuItem *Dropdown::add_item(const string &caption, int icon, const vector<Short
     return ret;
 }
 
+MenuItem *Dropdown::add_item(const std::pair<std::string, std::string> &item_data, int icon,
+				   const std::function<void()> &callback, const std::vector<Shortcut> &shortcuts,
+				   bool visible) {
+	auto ret = new MenuItem{popup(), item_data.first, icon, shortcuts};
+	ret->set_flags(m_mode == ComboBox ? Button::RadioButton : Button::NormalButton);
+	ret->set_visible(visible);
+	ret->set_callback([this, index = m_popup->child_count() - 1, callback, item_data] {
+		if (callback)
+			callback();
+		set_selected_index(index);
+		if (m_popup->selected_callback())
+			m_popup->selected_callback()(index);
+	});
+	// Store item_data.second (ID) in MenuItem's tooltip for reference
+	ret->set_tooltip(item_data.second);
+	return ret;
+}
+
 Dropdown *Dropdown::add_submenu(const string &caption, int icon)
 {
     auto ret = new Dropdown{popup(), Dropdown::Submenu, caption};

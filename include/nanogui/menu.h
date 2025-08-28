@@ -159,6 +159,9 @@ public:
     void set_mode(Mode mode) { m_mode = mode; }
 
     MenuItem *add_item(const std::string &caption, int icon = 0, const std::vector<Shortcut> &s = {{0, 0}});
+	MenuItem *add_item(const std::pair<std::string, std::string> &item_data, int icon,
+					   const std::function<void()> &callback, const std::vector<Shortcut> &shortcuts,
+					   				   bool visible = true);
     Dropdown *add_submenu(const std::string &caption, int icon = 0);
 
     /// The current index this Dropdown has selected.

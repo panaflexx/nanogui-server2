@@ -15,8 +15,8 @@ public:
     LabelExampleApp() : Screen(Vector2i(800, 600), "Label Line Breaking Demo") {
         inc_ref();
         Theme *theme = m_theme;
-        theme->m_window_fill_unfocused = Color(140, 140, 145, 255);
-        theme->m_window_fill_focused = Color(145, 145, 150, 255);
+        theme->m_window_fill_unfocused = Color(240, 240, 245, 255);
+        theme->m_window_fill_focused = Color(245, 245, 250, 255);
         theme->m_text_color = Color(255, 1, 0, 255);
 
         Window *window = new Window(this, "", true);

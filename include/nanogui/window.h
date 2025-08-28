@@ -16,6 +16,14 @@
 
 NAMESPACE_BEGIN(nanogui)
 
+struct WindowConfig {
+    std::string title = "Untitled";
+    Vector2i position = Vector2i(0, 0);
+    Vector2i size = Vector2i(100, 100);
+    bool resizable = true;
+    Layout* layout = nullptr;
+};
+
 /**
  * \class Window window.h nanogui/window.h
  *
@@ -24,6 +32,13 @@ NAMESPACE_BEGIN(nanogui)
     class NANOGUI_EXPORT Window : public Widget {
     friend class Popup;
     public:
+	    Window(Widget* parent, const WindowConfig& config) : Widget(parent), m_title(config.title), m_resizable(config.resizable) {
+			m_pos = config.position;
+			m_size = config.size;
+			if (config.layout) {
+				set_layout(config.layout);
+			}
+		} 
         Window(Widget* parent, const std::string& title = "Untitled", bool resizable = false);
 
         /// Return the window title
