@@ -22,6 +22,10 @@ callbacks, a variety of useful widget types and Retina-capable rendering on
 Apple devices thanks to NanoVG_ by Mikko Mononen. Python bindings of all
 functionality are provided using pybind11_.
 
+**NEW**: Support for color emoji font in NanoVG fontstash.
+**NEW**: Flex Layout (flexdemo.cpp)
+**NEW**: Menubar, Dropdown menus 
+
 **Note**: This repository contains an improved port of the original NanoGUI_.
 The most visible change to developers is that it no longer relies on Eigen or
 Enoki and ships with its own (absolutely minimal) vector library. Additionally,
