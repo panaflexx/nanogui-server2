@@ -23,7 +23,9 @@ Apple devices thanks to NanoVG_ by Mikko Mononen. Python bindings of all
 functionality are provided using pybind11_.
 
 **NEW**: Support for color emoji font in NanoVG fontstash.
+
 **NEW**: Flex Layout (flexdemo.cpp)
+
 **NEW**: Menubar, Dropdown menus 
 
 **Note**: This repository contains an improved port of the original NanoGUI_.
