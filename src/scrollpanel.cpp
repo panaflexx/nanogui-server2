@@ -79,12 +79,10 @@ bool ScrollPanel::keyboard_event(int key, int scancode, int action, int modifier
     if (focused()) {
 		if(modifiers == GLFW_MOD_SHIFT)
 			printf("Got shift!\n");
-
-		Widget* child = m_children[0];
-		child->keyboard_event(key, scancode, action, modifiers);
-		return true;
 	}
-	return false;
+
+    auto child = m_children[0];
+	return child->keyboard_event(key, scancode, action, modifiers);
 }
 
 Vector2i ScrollPanel::preferred_size(NVGcontext* ctx) const {
