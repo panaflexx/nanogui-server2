@@ -107,14 +107,14 @@ public:
         nameRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Stretch, 5, 5));
         new Label(nameRow, "Name:");
         customerName = new TextBox(nameRow,"");
-        customerName->set_fixed_width(300);
+        customerName->set_width(300);
         customerName->set_placeholder("Enter customer name");
 
         Widget* contactRow = new Widget(formContainer);
         contactRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
         new Label(contactRow, "Contact:");
         customerContact = new TextBox(contactRow,"");
-        customerContact->set_fixed_width(300);
+        customerContact->set_width(300);
         customerContact->set_placeholder("Enter phone or email");
 
         // Vehicle Information Section
@@ -126,7 +126,7 @@ public:
         makeRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
         new Label(makeRow, "Make:");
         Dropdown* makeDropdown = new Dropdown(makeRow, Dropdown::ComboBox, "Select Make");
-        makeDropdown->set_fixed_width(200);
+        makeDropdown->set_width(200);
 		makeDropdown->set_text_color( Color(255,255,255,255));
         std::vector<std::string> makes = {"Toyota", "Honda", "Ford", "Chevrolet", "BMW", "Mercedes"};
         for (const auto& make : makes) {
@@ -146,14 +146,14 @@ public:
         modelRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
         new Label(modelRow, "Model:");
         TextBox* modelText = new TextBox(modelRow,"");
-        modelText->set_fixed_width(200);
+        modelText->set_width(200);
         modelText->set_placeholder("Enter model");
 
         Widget* yearRow = new Widget(formContainer);
         yearRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
         new Label(yearRow, "Year:");
         Dropdown* yearDropdown = new Dropdown(yearRow, Dropdown::ComboBox, "Select Year");
-        yearDropdown->set_fixed_width(200);
+        yearDropdown->set_width(200);
 		yearDropdown->set_text_color( Color(255,255,255,255));
         for (int i = 2025; i >= 2010; --i) {
             std::string year = std::to_string(i);
@@ -178,7 +178,7 @@ public:
         priceRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
         new Label(priceRow, "Price ($):");
         salePrice = new TextBox(priceRow,"");
-        salePrice->set_fixed_width(200);
+        salePrice->set_min_size( Vector2i(200,24) );
         salePrice->set_placeholder("Enter sale price");
         salePrice->set_units("$");
 
@@ -186,7 +186,7 @@ public:
         statusRow->set_layout(new FlexLayout(FlexDirection::Row, JustifyContent::FlexStart, AlignItems::Center, 5, 5));
         new Label(statusRow, "Status:");
         Dropdown* statusDropdown = new Dropdown(statusRow, Dropdown::ComboBox, "Select Status");
-        statusDropdown->set_fixed_width(200);
+        statusDropdown->set_min_size( Vector2i(200,24) );
 		statusDropdown->set_text_color( Color(255,255,255,255));
         std::vector<std::string> statuses = {"Pending", "Completed", "Cancelled"};
         for (const auto& status : statuses) {
@@ -219,7 +219,7 @@ public:
 	// Makes background window resize with system window (screen)
     virtual bool resize_event(const Vector2i &size) override {
         if (m_rootWindow) {
-            m_rootWindow->set_fixed_size(size);
+            m_rootWindow->set_size(size);
             perform_layout(); 
         }
         Screen::resize_event(size);

@@ -84,7 +84,7 @@ public:
     /// Return the width of the widget
     int width() const { return m_size.x(); }
     /// Set the width of the widget
-    void set_width(int width) { m_size.x() = width; }
+    void set_width(int width) { m_size.x() = width; m_min_size.x() = width; }
 
     /// Return the height of the widget
     int height() const { return m_size.y(); }
