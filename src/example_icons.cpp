@@ -26,7 +26,7 @@ using namespace nanogui;
     auto b_##icon = new Button(wrapper, #icon, icon);      \
     b_##icon->set_icon_position(Button::IconPosition::Left); \
     b_##icon->set_icon_extra_scale(2);\
-    b_##icon->set_fixed_width(250);
+    b_##icon->set_min_size( Vector2i(250,20) );
     
 
 
@@ -34,24 +34,25 @@ int main(int /* argc */, char ** /* argv */) {
     nanogui::init();
 
     /* scoped variables */ {
-        static constexpr int width      = 2000;
+        static constexpr int width      = 1200;
         static constexpr int half_width = width / 2;
-        static constexpr int height     = 1200;
+        static constexpr int height     = 800;
 
         // create a fixed size screen with one window
         Screen *screen = new Screen({width, height}, "NanoGUI Icons", false);
-        Window *window = new Window(screen, "All Icons");
+        Window *window = new Window(screen, "");
         window->set_position({0, 0});
-        window->set_fixed_size({width, height});
+        window->set_size(screen->size());
 
         // attach a vertical scroll panel
         auto vscroll = new ScrollPanel(window);
         vscroll->set_scroll_type(ScrollPanel::ScrollTypes::Vertical);
-        vscroll->set_fixed_size({width, height});
+        //vscroll->set_size(window->size());
 
         // vscroll should only have *ONE* child. this is what `wrapper` is for
         auto wrapper = new Widget(vscroll);
         wrapper->set_layout(new GridLayout(Orientation::Horizontal, 8));// defaults: 2 columns
+		//wrapper->set_min_size( Vector2i(window->width(), 2000) );
 
         ////////////////////////////////////////////////////////////////////////
         ////////////////////////////////////////////////////////////////////////
