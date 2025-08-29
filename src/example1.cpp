@@ -494,7 +494,7 @@ public:
                 Alignment::Middle, 15, 5);
         layout->set_col_alignment(
             { Alignment::Maximum, Alignment::Fill });
-        layout->set_spacing(0, 10);
+		layout->set_spacing(Orientation::Horizontal, 10);
         GridWindow->set_layout(layout);
 
         /* FP widget */ {
@@ -556,7 +556,7 @@ public:
             Alignment::Middle, 15, 5);
         layout->set_col_alignment(
             { Alignment::Maximum, Alignment::Fill });
-        layout->set_spacing(0, 10);
+		layout->set_spacing(Orientation::Horizontal, 10);
         ColorPickerWindow->set_layout(layout);
         ColorPickerWindow->set_position(Vector2i(425, 500));
         new Label(ColorPickerWindow, "Combined: ");

@@ -1,22 +1,11 @@
-/*
-    src/layout.cpp -- A collection of useful layout managers
-
-    The grid layout was contributed by Christian Schueller.
-
-    NanoGUI was developed by Wenzel Jakob <wenzel.jakob@epfl.ch>.
-    The widget drawing code is based on the NanoVG demo application
-    by Mikko Mononen.
-
-    All rights reserved. Use of this source code is governed by a
-    BSD-style license that can be found in the LICENSE.txt file.
-*/
-
 #include <nanogui/layout.h>
 #include <nanogui/widget.h>
 #include <nanogui/window.h>
 #include <nanogui/theme.h>
 #include <nanogui/label.h>
+#include <nanogui/scrollpanel.h>
 #include <numeric>
+#include <cmath>
 
 NAMESPACE_BEGIN(nanogui)
 
@@ -31,11 +20,13 @@ Vector2i BoxLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const 
 
     int y_offset = 0;
     const Window* window = dynamic_cast<const Window*>(widget);
+    int header_adjust = 0;
     if (window && !window->title().empty()) {
+        header_adjust = window->theme()->m_window_header_height - m_margin / 2;
         if (m_orientation == Orientation::Vertical)
-            size[1] += widget->theme()->m_window_header_height - m_margin / 2;
+            size[1] += header_adjust;
         else
-            y_offset = widget->theme()->m_window_header_height;
+            y_offset = header_adjust;
     }
 
     bool first = true;
@@ -48,95 +39,153 @@ Vector2i BoxLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const 
         else
             size[axis1] += m_spacing;
 
-        Vector2i ps = w->preferred_size(ctx), fs = w->fixed_size();
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
+        Vector2i ps = w->preferred_size(ctx);
+        Vector2i min_s = w->min_size();
+        Vector2i max_s = w->max_size();
 
-        size[axis1] += target_size[axis1];
-        size[axis2] = std::max(size[axis2], target_size[axis2] + 2 * m_margin);
-        first = false;
+        Vector2i clamped_pref = ps;
+        clamped_pref = max(clamped_pref, min_s);
+        // Use parent widget size as default, with fallback to avoid recursion
+        Vector2i parent_size = widget->size();
+        Vector2i default_size = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+            ? widget->parent()->size() : Vector2i(1000, 1000);
+        if (parent_size == Vector2i(0, 0)) parent_size = default_size;
+        if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), parent_size.x() - 2 * m_margin);
+        if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), parent_size.y() - 2 * m_margin);
+
+        size[axis1] += clamped_pref[axis1];
+        size[axis2] = std::max(size[axis2], clamped_pref[axis2] + 2 * m_margin);
     }
-    // fixed size is the preferred size if it exists.
-    Vector2i to_return(size + Vector2i(0, y_offset));
-    if (widget->fixed_size().x() != 0)to_return.x() = widget->fixed_size().x();
-    if (widget->fixed_size().y() != 0)to_return.y() = widget->fixed_size().y();
-
-    return to_return;
+    return size + Vector2i(0, y_offset);
 }
 
 void BoxLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
-    Vector2i fs_w = widget->fixed_size();
-    Vector2i container_size(
-        fs_w[0] ? fs_w[0] : widget->width(),
-        fs_w[1] ? fs_w[1] : widget->height()
-    );
+    Vector2i container_size = widget->size();
+    Vector2i default_container = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    if (container_size == Vector2i(0, 0)) container_size = default_container;
 
     int axis1 = (int)m_orientation, axis2 = ((int)m_orientation + 1) % 2;
     int position = m_margin;
     int y_offset = 0;
 
     const Window* window = dynamic_cast<const Window*>(widget);
+    int header_adjust = 0;
     if (window && !window->title().empty()) {
+        header_adjust = window->theme()->m_window_header_height - m_margin / 2;
+        container_size.y() -= header_adjust;
         if (m_orientation == Orientation::Vertical) {
-            position += widget->theme()->m_window_header_height - m_margin / 2;
-        }
-        else {
-            y_offset = widget->theme()->m_window_header_height;
-            container_size[1] -= y_offset;
+            position += header_adjust;
+        } else {
+            y_offset = header_adjust;
         }
     }
 
-    bool first = true;
+    // Collect visible children and compute total pref, min, max on axis1
+    std::vector<Widget*> visible_children;
+    float total_pref = 0.f;
+    float total_min = 0.f;
+    float total_max = 0.f;
     for (auto w : widget->children()) {
-        if (!w->visible())
-            continue;
-        if (first)
-            first = false;
-        else
-            position += m_spacing;
+        if (w->visible()) {
+            visible_children.push_back(w);
+            Vector2i ps = w->preferred_size(ctx);
+            Vector2i min_s = w->min_size();
+            Vector2i max_s = w->max_size();
 
-        Vector2i ps = w->preferred_size(ctx), fs = w->fixed_size();
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
+            int axis_pref = ps[axis1];
+            int axis_min = min_s[axis1];
+            int axis_max = max_s[axis1] > 0 ? max_s[axis1] : (container_size[axis1] - 2 * m_margin);
+
+            total_pref += axis_pref;
+            total_min += axis_min;
+            total_max += axis_max;
+        }
+    }
+
+    if (visible_children.empty()) return;
+
+    float available_axis1 = container_size[axis1] - 2 * m_margin;
+    int num_visible = (int)visible_children.size();
+    available_axis1 -= std::max(0, num_visible - 1) * m_spacing;
+
+    // If total_min > available, use min for each, overflow will be clipped
+    bool overflow = total_min > available_axis1;
+    float scale_factor = 1.0f;
+    if (!overflow && total_pref > available_axis1) {
+        scale_factor = available_axis1 / total_pref;
+    }
+
+    for (auto w : visible_children) {
+        Vector2i ps = w->preferred_size(ctx);
+        Vector2i min_s = w->min_size();
+        Vector2i max_s = w->max_size();
+
+        int axis_pref = ps[axis1];
+        int axis_min = min_s[axis1];
+        int axis_max = max_s[axis1] > 0 ? max_s[axis1] : (container_size[axis1] - 2 * m_margin);
+
+        int target_axis1 = axis_pref;
+        if (overflow) {
+            target_axis1 = axis_min;
+        } else if (scale_factor < 1.0f) {
+            target_axis1 = (int)(axis_pref * scale_factor);
+        }
+        target_axis1 = std::max(axis_min, std::min(target_axis1, axis_max));
+
         Vector2i pos(0, y_offset);
-
         pos[axis1] = position;
+
+        // For axis2
+        int available_axis2 = container_size[axis2] - 2 * m_margin;
+        int target_axis2 = ps[axis2];
+        int axis2_min = min_s[axis2];
+        int axis2_max = max_s[axis2] > 0 ? max_s[axis2] : available_axis2;
 
         switch (m_alignment) {
             case Alignment::Minimum:
                 pos[axis2] += m_margin;
                 break;
             case Alignment::Middle:
-                pos[axis2] += (container_size[axis2] - target_size[axis2]) / 2;
+                pos[axis2] += (available_axis2 - target_axis2) / 2;
                 break;
             case Alignment::Maximum:
-                pos[axis2] += container_size[axis2] - target_size[axis2] - m_margin * 2;
+                pos[axis2] += available_axis2 - target_axis2 - m_margin * 2;
                 break;
             case Alignment::Fill:
                 pos[axis2] += m_margin;
-                target_size[axis2] = fs[axis2] ? fs[axis2] : (container_size[axis2] - m_margin * 2);
+                target_axis2 = available_axis2;
                 break;
         }
+
+        target_axis2 = std::max(axis2_min, std::min(target_axis2, axis2_max));
+
+        Vector2i target_size;
+        target_size[axis1] = target_axis1;
+        target_size[axis2] = target_axis2;
 
         w->set_position(pos);
         w->set_size(target_size);
         w->perform_layout(ctx);
-        position += target_size[axis1];
+
+        position += target_axis1 + m_spacing;
     }
 }
+
 
 Vector2i GroupLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const {
     int height = m_margin, width = 2 * m_margin;
 
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())
-        height += widget->theme()->m_window_header_height - m_margin / 2;
+        height += window->theme()->m_window_header_height - m_margin / 2;
 
     bool first = true, indent = false;
+    Vector2i default_size = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    Vector2i parent_size = widget->size();
+    if (parent_size == Vector2i(0, 0)) parent_size = default_size;
+
     for (auto c : widget->children()) {
         if (!c->visible())
             continue;
@@ -145,35 +194,38 @@ Vector2i GroupLayout::preferred_size(NVGcontext* ctx, const Widget* widget) cons
             height += (label == nullptr) ? m_spacing : m_group_spacing;
         first = false;
 
-        Vector2i ps = c->preferred_size(ctx), fs = c->fixed_size();
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
+        Vector2i ps = c->preferred_size(ctx);
+        Vector2i min_s = c->min_size();
+        Vector2i max_s = c->max_size();
+
+        Vector2i clamped_pref = ps;
+        clamped_pref = max(clamped_pref, min_s);
+        if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), parent_size.x() - 2 * m_margin);
+        if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), parent_size.y() - 2 * m_margin);
 
         bool indent_cur = indent && label == nullptr;
-        height += target_size.y();
-        width = std::max(width, target_size.x() + 2 * m_margin + (indent_cur ? m_group_indent : 0));
+        height += clamped_pref.y();
+        width = std::max(width, clamped_pref.x() + 2 * m_margin + (indent_cur ? m_group_indent : 0));
 
         if (label)
             indent = !label->caption().empty();
     }
     height += m_margin;
 
-    // fixed size is the preferred size if it exists.
-    if (widget->fixed_size().x() != 0)width = widget->fixed_size().x();
-    if (widget->fixed_size().y() != 0)height = widget->fixed_size().y();
     return Vector2i(width, height);
 }
 
 void GroupLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     int height = m_margin;
-    int available_width = (widget->fixed_width() ? widget->fixed_width() : widget->width()) - 2 * m_margin;
-    //int available_height = (widget->fixed_height() ? widget->fixed_height() : widget->height()) - 2 * m_margin;
+    int available_width = widget->width() - 2 * m_margin;
+    if (available_width <= 0) {
+        available_width = widget->parent() && widget->parent()->size().x() != 0
+            ? widget->parent()->size().x() - 2 * m_margin : 1000 - 2 * m_margin;
+    }
 
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())
-        height += widget->theme()->m_window_header_height - m_margin / 2;
+        height += window->theme()->m_window_header_height - m_margin / 2;
 
     bool first = true, indent = false;
     for (auto c : widget->children()) {
@@ -185,29 +237,27 @@ void GroupLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
         first = false;
 
         bool indent_cur = indent && label == nullptr;
-        //Vector2i ps = Vector2i(m_expand_horizontally ? available_width - (indent_cur ? m_group_indent : 0) : c->preferred_size(ctx).x(), m_expand_vertically ? available_height : c->preferred_size(ctx).y());
         Vector2i ps = Vector2i(available_width - (indent_cur ? m_group_indent : 0), c->preferred_size(ctx).y());
-        Vector2i fs = c->fixed_size();
+        Vector2i min_s = c->min_size();
+        Vector2i max_s = c->max_size();
 
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
+        Vector2i clamped_pref = ps;
+        clamped_pref = max(clamped_pref, min_s);
+        if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), available_width - (indent_cur ? m_group_indent : 0));
+        if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), widget->height() - 2 * m_margin);
 
         c->set_position(Vector2i(m_margin + (indent_cur ? m_group_indent : 0), height));
-        c->set_size(target_size);
+        c->set_size(clamped_pref);
         c->perform_layout(ctx);
 
-        height += target_size.y();
+        height += clamped_pref.y();
 
         if (label)
             indent = !label->caption().empty();
     }
 }
 
-Vector2i GridLayout::preferred_size(NVGcontext* ctx,
-    const Widget* widget) const {
-    /* Compute minimum row / column sizes */
+Vector2i GridLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const {
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
 
@@ -218,16 +268,13 @@ Vector2i GridLayout::preferred_size(NVGcontext* ctx,
         + std::max((int)grid[1].size() - 1, 0) * m_spacing[1]
     );
 
+	printf("Grid computed size: %d, %d\n", size[0], size[1]);
+
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())
-        size[1] += widget->theme()->m_window_header_height - m_margin / 2;
+        size[1] += window->theme()->m_window_header_height - m_margin / 2;
 
-    // fixed size is the preferred size if it exists.
-    Vector2i to_return(size);
-    if (widget->fixed_size().x() != 0)to_return.x() = widget->fixed_size().x();
-    if (widget->fixed_size().y() != 0)to_return.y() = widget->fixed_size().y();
-
-    return to_return;
+    return size;
 }
 
 void GridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vector<int>* grid) const {
@@ -243,6 +290,11 @@ void GridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vect
     grid[axis1].clear(); grid[axis1].resize(dim[axis1], 0);
     grid[axis2].clear(); grid[axis2].resize(dim[axis2], 0);
 
+    Vector2i default_size = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    Vector2i parent_size = widget->size();
+    if (parent_size == Vector2i(0, 0)) parent_size = default_size;
+
     size_t child = 0;
     for (int i2 = 0; i2 < dim[axis2]; i2++) {
         for (int i1 = 0; i1 < dim[axis1]; i1++) {
@@ -254,26 +306,26 @@ void GridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vect
             } while (!w->visible());
 
             Vector2i ps = w->preferred_size(ctx);
-            Vector2i fs = w->fixed_size();
-            Vector2i target_size(
-                fs[0] ? fs[0] : ps[0],
-                fs[1] ? fs[1] : ps[1]
-            );
+            Vector2i min_s = w->min_size();
+            Vector2i max_s = w->max_size();
 
-            grid[axis1][i1] = std::max(grid[axis1][i1], target_size[axis1]);
-            grid[axis2][i2] = std::max(grid[axis2][i2], target_size[axis2]);
+            Vector2i clamped_pref = ps;
+            clamped_pref = max(clamped_pref, min_s);
+            if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), parent_size.x() - 2 * m_margin);
+            if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), parent_size.y() - 2 * m_margin);
+
+            grid[axis1][i1] = std::max(grid[axis1][i1], clamped_pref[axis1]);
+            grid[axis2][i2] = std::max(grid[axis2][i2], clamped_pref[axis2]);
         }
     }
 }
 
 void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
-    Vector2i fs_w = widget->fixed_size();
-    Vector2i container_size(
-        fs_w[0] ? fs_w[0] : widget->width(),
-        fs_w[1] ? fs_w[1] : widget->height()
-    );
+    Vector2i default_container = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    Vector2i container_size = widget->size();
+    if (container_size == Vector2i(0, 0)) container_size = default_container;
 
-    /* Compute minimum row / column sizes */
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
     int dim[2] = { (int)grid[0].size(), (int)grid[1].size() };
@@ -281,9 +333,8 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     Vector2i extra(0);
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())
-        extra[1] += widget->theme()->m_window_header_height - m_margin / 2;
+        extra[1] += window->theme()->m_window_header_height - m_margin / 2;
 
-    /* Strech to size provided by \c widget */
     for (int i = 0; i < 2; i++) {
         int grid_size = 2 * m_margin + extra[i];
         for (int s : grid[i]) {
@@ -293,7 +344,6 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
         }
 
         if (grid_size < container_size[i]) {
-            /* Re-distribute remaining space evenly */
             int gap = container_size[i] - grid_size;
             int g = gap / dim[i];
             int rest = gap - g * dim[i];
@@ -322,17 +372,27 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
             } while (!w->visible());
 
             Vector2i ps = w->preferred_size(ctx);
-            Vector2i fs = w->fixed_size();
-            Vector2i target_size(
-                fs[0] ? fs[0] : ps[0],
-                fs[1] ? fs[1] : ps[1]
-            );
+            Vector2i min_s = w->min_size();
+            Vector2i max_s = w->max_size();
+
+            Vector2i clamped_pref = ps;
+            clamped_pref = max(clamped_pref, min_s);
+            if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), grid[axis1][i1]);
+            if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), grid[axis2][i2]);
+
+            Vector2i target_size = clamped_pref;
 
             Vector2i item_pos(pos);
             for (int j = 0; j < 2; j++) {
                 int axis = (axis1 + j) % 2;
                 int item = j == 0 ? i1 : i2;
                 Alignment align = alignment(axis, item);
+                int available = grid[axis][item];
+                int axis_min = min_s[axis];
+                int axis_max = max_s[axis] > 0 ? max_s[axis] : available;
+
+                target_size[axis] = std::max(axis_min, std::min(target_size[axis], axis_max));
+                target_size[axis] = std::min(target_size[axis], available);
 
                 switch (align) {
                     case Alignment::Minimum:
@@ -344,7 +404,7 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
                         item_pos[axis] += grid[axis][item] - target_size[axis];
                         break;
                     case Alignment::Fill:
-                        target_size[axis] = fs[axis] ? fs[axis] : grid[axis][item];
+                        target_size[axis] = std::max(axis_min, std::min(available, axis_max));
                         break;
                 }
             }
@@ -364,7 +424,6 @@ AdvancedGridLayout::AdvancedGridLayout(const std::vector<int>& cols, const std::
 }
 
 Vector2i AdvancedGridLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const {
-    /* Compute minimum row / column sizes */
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
 
@@ -377,23 +436,22 @@ Vector2i AdvancedGridLayout::preferred_size(NVGcontext* ctx, const Widget* widge
     if (window && !window->title().empty())
         extra[1] += widget->theme()->m_window_header_height - m_margin / 2;
 
-    // fixed size is the preferred size if it exists.
-    Vector2i to_return(size + extra);
-    if (widget->fixed_size().x() != 0)to_return.x() = widget->fixed_size().x();
-    if (widget->fixed_size().y() != 0)to_return.y() = widget->fixed_size().y();
-
-
-    return to_return;
+    return size + extra;
 }
 
 void AdvancedGridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
+    Vector2i default_container = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    Vector2i container_size = widget->size();
+    if (container_size == Vector2i(0, 0)) container_size = default_container;
+
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
 
     grid[0].insert(grid[0].begin(), m_margin);
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())
-        grid[1].insert(grid[1].begin(), widget->theme()->m_window_header_height + m_margin / 2);
+        grid[1].insert(grid[1].begin(), window->theme()->m_window_header_height + m_margin / 2);
     else
         grid[1].insert(grid[1].begin(), m_margin);
 
@@ -408,24 +466,16 @@ void AdvancedGridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
 
             int item_pos = grid[axis][anchor.pos[axis]];
             int cell_size = grid[axis][anchor.pos[axis] + anchor.size[axis]] - item_pos;
-            int ps = w->preferred_size(ctx)[axis], fs = w->fixed_size()[axis];
-            int target_size = fs ? fs : ps;
+            int ps = w->preferred_size(ctx)[axis];
+            int min_s = w->min_size()[axis];
+            int max_s = w->max_size()[axis];
+            int target_size = ps;
+            if (max_s == 0) max_s = cell_size;
+            target_size = std::max(min_s, std::min(target_size, max_s));
+            target_size = std::min(target_size, cell_size);
 
-            switch (anchor.align[axis]) {
-                case Alignment::Minimum:
-                    break;
-                case Alignment::Middle:
-                    item_pos += (cell_size - target_size) / 2;
-                    break;
-                case Alignment::Maximum:
-                    item_pos += cell_size - target_size;
-                    break;
-                case Alignment::Fill:
-                    target_size = fs ? fs : cell_size;
-                    break;
-            }
-
-            Vector2i pos = w->position(), size = w->size();
+            Vector2i pos = w->position();
+            Vector2i size = w->size();
             pos[axis] = item_pos;
             size[axis] = target_size;
             w->set_position(pos);
@@ -435,14 +485,11 @@ void AdvancedGridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     }
 }
 
-
-void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
-    std::vector<int>* _grid) const {
-    Vector2i fs_w = widget->fixed_size();
-    Vector2i container_size(
-        fs_w[0] ? fs_w[0] : widget->width(),
-        fs_w[1] ? fs_w[1] : widget->height()
-    );
+void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vector<int>* _grid) const {
+    Vector2i default_container = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    Vector2i container_size = widget->size();
+    if (container_size == Vector2i(0, 0)) container_size = default_container;
 
     Vector2i extra(2 * m_margin);
     const Window* window = dynamic_cast<const Window*>(widget);
@@ -466,61 +513,12 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
                 if ((anchor.size[axis] == 1) != (phase == 0))
                     continue;
 
-                int ps, fs = w->fixed_size()[axis];
-                
-                // ALIGNMENT-BASED WIDTH CONSTRAINT
-                if (!fs && axis == 0) { // No fixed width and we're calculating width
-                    Alignment align = anchor.align[axis];
-                    
-                    // Calculate available space for this widget's span
-                    int available_space = container_size[axis];
-                    if (anchor.size[axis] > 1) {
-                        // For multi-span widgets, allocate proportionally
-                        available_space = (container_size[axis] * anchor.size[axis]) / std::max(1, (int)m_cols.size());
-                    } else {
-                        // For single-span widgets, use average column width
-                        available_space = container_size[axis] / std::max(1, (int)m_cols.size());
-                    }
-                    
-                    // Determine constraint based on alignment intent
-                    int max_width_constraint;
-                    switch (align) {
-                        case Alignment::Fill:
-                            // Widget will be resized to fill cell - constrain more aggressively
-                            max_width_constraint = std::max(50, available_space);
-                            break;
-                        case Alignment::Minimum:
-                        case Alignment::Maximum:
-                        case Alignment::Middle:
-                            // Widget keeps preferred size - be more generous but still reasonable
-                            max_width_constraint = std::max(100, (int)(available_space * 1.2f));
-                            break;
-                    }
-                    
-                    // Apply constraint for flexible widgets (like Labels)
-                    const Label* label = dynamic_cast<const Label*>(w);
-                    if (label) {
-                        Widget* non_const_w = const_cast<Widget*>(w);
-                        Vector2i original_size = non_const_w->size();
-                        
-                        // Temporarily set width constraint for preferred size calculation
-                        non_const_w->set_size(Vector2i(max_width_constraint, original_size.y()));
-                        non_const_w->perform_layout(ctx);
-                        ps = w->preferred_size(ctx)[axis];
-                        
-                        // Restore original size
-                        non_const_w->set_size(original_size);
-                    } else {
-                        ps = w->preferred_size(ctx)[axis];
-                        // Still cap non-label widgets reasonably
-                        ps = std::min(ps, max_width_constraint);
-                    }
-                } else {
-                    // For height or fixed-width widgets, use normal preferred size
-                    ps = w->preferred_size(ctx)[axis];
-                }
-                
-                int target_size = fs ? fs : ps;
+                int ps = w->preferred_size(ctx)[axis];
+                int min_s = w->min_size()[axis];
+                int max_s = w->max_size()[axis];
+                int target_size = ps;
+                if (max_s == 0) max_s = container_size[axis];
+                target_size = std::max(min_s, std::min(target_size, max_s));
 
                 if (anchor.pos[axis] + anchor.size[axis] > (int)grid.size())
                     throw std::runtime_error(
@@ -549,7 +547,6 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
             }
         }
 
-        // Final stretch distribution - ensure we don't exceed container bounds
         int current_size = std::accumulate(grid.begin(), grid.end(), 0);
         float total_stretch = std::accumulate(stretch.begin(), stretch.end(), 0.0f);
         if (current_size < container_size[axis] && total_stretch > 0) {
@@ -560,17 +557,16 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget,
     }
 }
 
-FlexLayout::FlexLayout(FlexDirection direction, JustifyContent justify_content, 
-                       AlignItems align_items, int margin, int gap)
-    : m_direction(direction), m_justify_content(justify_content), 
+FlexLayout::FlexLayout(FlexDirection direction, JustifyContent justify_content,
+                      AlignItems align_items, int margin, int gap)
+    : m_direction(direction), m_justify_content(justify_content),
       m_align_items(align_items), m_flex_wrap(FlexWrap::NoWrap),
       m_margin(margin), m_gap(gap) {
 }
 
 Vector2i FlexLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const {
     Vector2i size(2 * m_margin);
-    
-    // Account for window header
+
     int y_offset = 0;
     const Window *window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty()) {
@@ -580,7 +576,6 @@ Vector2i FlexLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const
             y_offset = widget->theme()->m_window_header_height;
     }
 
-    // Collect visible children
     std::vector<Widget*> visible_children;
     for (auto child : widget->children()) {
         if (child->visible())
@@ -592,48 +587,59 @@ Vector2i FlexLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const
 
     int main_axis_idx = main_axis();
     int cross_axis_idx = cross_axis();
-    
+
     int total_main_size = 0;
     int max_cross_size = 0;
-    
+
+    Vector2i default_size = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
+    Vector2i parent_size = widget->size();
+    if (parent_size == Vector2i(0, 0)) parent_size = default_size;
+
+    // Use half parent size for ScrollPanel/Window children to avoid recursion
+    Vector2i default_child_size = default_size / 2;
     for (size_t i = 0; i < visible_children.size(); ++i) {
         Widget *child = visible_children[i];
-        Vector2i child_pref = child->preferred_size(ctx);
-        Vector2i child_fixed = child->fixed_size();
-        
+        Vector2i child_pref;
+        // Use default size for ScrollPanel/Window to prevent recursion
+        if (dynamic_cast<const ScrollPanel*>(child) || dynamic_cast<const Window*>(child)) {
+            child_pref = default_child_size;
+        } else {
+            child_pref = child->preferred_size(ctx);
+        }
+        Vector2i min_s = child->min_size();
+        Vector2i max_s = child->max_size();
+
+        Vector2i clamped_pref = child_pref;
+        clamped_pref = max(clamped_pref, min_s);
+        if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), parent_size.x() - 2 * m_margin);
+        if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), parent_size.y() - 2 * m_margin);
+
         FlexItem flex_item = get_flex_item(child);
-        
-        // Main axis size
-        int main_size = child_fixed[main_axis_idx] ? child_fixed[main_axis_idx] : 
-                       (flex_item.flex_basis >= 0 ? flex_item.flex_basis : child_pref[main_axis_idx]);
+
+        int main_size = flex_item.flex_basis >= 0 ? flex_item.flex_basis : clamped_pref[main_axis_idx];
+        main_size = std::max(min_s[main_axis_idx], std::min(main_size, max_s[main_axis_idx] > 0 ? max_s[main_axis_idx] : main_size));
         total_main_size += main_size;
-        
-        // Cross axis size  
-        int cross_size = child_fixed[cross_axis_idx] ? child_fixed[cross_axis_idx] : child_pref[cross_axis_idx];
+
+        int cross_size = clamped_pref[cross_axis_idx];
+        cross_size = std::max(min_s[cross_axis_idx], std::min(cross_size, max_s[cross_axis_idx] > 0 ? max_s[cross_axis_idx] : cross_size));
         max_cross_size = std::max(max_cross_size, cross_size);
-        
-        // Add gap (except for last item)
+
         if (i < visible_children.size() - 1)
             total_main_size += m_gap;
     }
-    
+
     size[main_axis_idx] += total_main_size;
     size[cross_axis_idx] += max_cross_size;
-    
-    Vector2i result = size + Vector2i(0, y_offset);
-    
-    // Apply fixed size constraints
-    if (widget->fixed_size().x() != 0) result.x() = widget->fixed_size().x();
-    if (widget->fixed_size().y() != 0) result.y() = widget->fixed_size().y();
-    
-    return result;
+
+    return size + Vector2i(0, y_offset);
 }
 
 void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
+    Vector2i default_container = widget->parent() && widget->parent()->size() != Vector2i(0, 0)
+        ? widget->parent()->size() : Vector2i(1000, 1000);
     Vector2i container_size = widget->size();
-    Vector2i fs_w = widget->fixed_size();
-    if (fs_w.x()) container_size.x() = fs_w.x();
-    if (fs_w.y()) container_size.y() = fs_w.y();
+    if (container_size == Vector2i(0, 0)) container_size = default_container;
 
     int y_offset = 0;
     const Window *window = dynamic_cast<const Window*>(widget);
@@ -646,7 +652,6 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
         }
     }
 
-    // Collect visible children
     std::vector<Widget*> visible_children;
     for (auto child : widget->children()) {
         if (child->visible())
@@ -658,64 +663,72 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
 
     int main_axis_idx = main_axis();
     int cross_axis_idx = cross_axis();
-    
-    // Available space for flex items (subtract margins)
+
     int available_main_space = container_size[main_axis_idx] - 2 * m_margin;
     int available_cross_space = container_size[cross_axis_idx] - 2 * m_margin;
-    
-    // Calculate base sizes and collect flex info
+
     std::vector<int> base_sizes;
     std::vector<int> final_sizes;
     float total_flex_grow = 0.0f;
     float total_flex_shrink_scaled = 0.0f;
     int total_base_size = 0;
     int total_gaps = std::max(0, (int)visible_children.size() - 1) * m_gap;
-    
+
+    Vector2i default_child_size = default_container / 2; // Default for ScrollPanel/Window
     for (Widget *child : visible_children) {
-        Vector2i child_pref = child->preferred_size(ctx);
-        Vector2i child_fixed = child->fixed_size();
-        FlexItem flex_item = get_flex_item(child);
-        
-        int base_size;
-        if (child_fixed[main_axis_idx]) {
-            base_size = child_fixed[main_axis_idx];
-        } else if (flex_item.flex_basis >= 0) {
-            base_size = flex_item.flex_basis;
+        Vector2i child_pref;
+        if (dynamic_cast<const ScrollPanel*>(child) || dynamic_cast<const Window*>(child)) {
+            child_pref = default_child_size;
         } else {
-            base_size = child_pref[main_axis_idx];
+            child_pref = child->preferred_size(ctx);
         }
-        
+        Vector2i min_s = child->min_size();
+        Vector2i max_s = child->max_size();
+
+        Vector2i clamped_pref = child_pref;
+        clamped_pref = max(clamped_pref, min_s);
+        if (max_s.x() == 0) clamped_pref.x() = std::min(clamped_pref.x(), available_main_space);
+        if (max_s.y() == 0) clamped_pref.y() = std::min(clamped_pref.y(), available_cross_space);
+
+        FlexItem flex_item = get_flex_item(child);
+
+        int base_size = flex_item.flex_basis >= 0 ? flex_item.flex_basis : clamped_pref[main_axis_idx];
+        int axis_min = min_s[main_axis_idx];
+        int axis_max = max_s[main_axis_idx] > 0 ? max_s[main_axis_idx] : available_main_space;
+        base_size = std::max(axis_min, std::min(base_size, axis_max));
+
         base_sizes.push_back(base_size);
         total_base_size += base_size;
         total_flex_grow += flex_item.flex_grow;
         total_flex_shrink_scaled += flex_item.flex_shrink * base_size;
     }
-    
-    // Resolve flexible lengths[4]
+
     int remaining_space = available_main_space - total_base_size - total_gaps;
-    
+
     for (size_t i = 0; i < visible_children.size(); ++i) {
-        FlexItem flex_item = get_flex_item(visible_children[i]);
+        Widget *child = visible_children[i];
+        FlexItem flex_item = get_flex_item(child);
         int final_size = base_sizes[i];
-        
+
         if (remaining_space > 0 && total_flex_grow > 0) {
-            // Distribute positive space via flex-grow
             float grow_factor = flex_item.flex_grow / total_flex_grow;
             final_size += (int)(remaining_space * grow_factor);
         } else if (remaining_space < 0 && total_flex_shrink_scaled > 0) {
-            // Distribute negative space via flex-shrink  
             float shrink_factor = (flex_item.flex_shrink * base_sizes[i]) / total_flex_shrink_scaled;
             final_size += (int)(remaining_space * shrink_factor);
-            final_size = std::max(0, final_size); // Don't allow negative sizes
+            final_size = std::max(0, final_size);
         }
-        
+
+        int axis_min = child->min_size()[main_axis_idx];
+        int axis_max = child->max_size()[main_axis_idx] > 0 ? child->max_size()[main_axis_idx] : available_main_space;
+        final_size = std::max(axis_min, std::min(final_size, axis_max));
+
         final_sizes.push_back(final_size);
     }
-    
-    // Position items along main axis based on justify_content[2][3]
+
     std::vector<int> positions;
     int current_pos = m_margin;
-    
+
     switch (m_justify_content) {
         case JustifyContent::FlexStart:
             for (size_t i = 0; i < visible_children.size(); ++i) {
@@ -723,7 +736,6 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
                 current_pos += final_sizes[i] + (i < visible_children.size() - 1 ? m_gap : 0);
             }
             break;
-            
         case JustifyContent::FlexEnd: {
             int total_used = std::accumulate(final_sizes.begin(), final_sizes.end(), 0) + total_gaps;
             current_pos = available_main_space + m_margin - total_used;
@@ -733,7 +745,6 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
             }
             break;
         }
-        
         case JustifyContent::Center: {
             int total_used = std::accumulate(final_sizes.begin(), final_sizes.end(), 0) + total_gaps;
             current_pos = m_margin + (available_main_space - total_used) / 2;
@@ -743,7 +754,6 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
             }
             break;
         }
-        
         case JustifyContent::SpaceBetween: {
             if (visible_children.size() == 1) {
                 positions.push_back(m_margin);
@@ -758,7 +768,6 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
             }
             break;
         }
-        
         case JustifyContent::SpaceAround: {
             int total_item_size = std::accumulate(final_sizes.begin(), final_sizes.end(), 0);
             int space_around = (available_main_space - total_item_size) / (2 * (int)visible_children.size());
@@ -769,7 +778,6 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
             }
             break;
         }
-        
         case JustifyContent::SpaceEvenly: {
             int total_item_size = std::accumulate(final_sizes.begin(), final_sizes.end(), 0);
             int space_evenly = (available_main_space - total_item_size) / ((int)visible_children.size() + 1);
@@ -781,35 +789,39 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
             break;
         }
     }
-    
-    // Handle reverse directions
+
     if (is_reverse_direction()) {
         std::reverse(positions.begin(), positions.end());
         std::reverse(final_sizes.begin(), final_sizes.end());
-        // Adjust positions for reverse
         for (size_t i = 0; i < positions.size(); ++i) {
             positions[i] = container_size[main_axis_idx] - positions[i] - final_sizes[i];
         }
     }
-    
-    // Apply positions and sizes to children
+
     for (size_t i = 0; i < visible_children.size(); ++i) {
         Widget *child = visible_children[i];
         Vector2i child_pos = child->position();
         Vector2i child_size = child->size();
         FlexItem flex_item = get_flex_item(child);
-        
-        // Set main axis position and size
+
         child_pos[main_axis_idx] = positions[i];
         child_size[main_axis_idx] = final_sizes[i];
-        
-        // Handle cross axis alignment
-        Vector2i child_pref = child->preferred_size(ctx);
-        Vector2i child_fixed = child->fixed_size();
-        
+
+        Vector2i child_pref;
+        if (dynamic_cast<const ScrollPanel*>(child) || dynamic_cast<const Window*>(child)) {
+            child_pref = default_child_size;
+        } else {
+            child_pref = child->preferred_size(ctx);
+        }
+        Vector2i min_s = child->min_size();
+        Vector2i max_s = child->max_size();
+
         AlignItems align = (flex_item.align_self != AlignItems::FlexStart) ? flex_item.align_self : m_align_items;
-        int cross_size = child_fixed[cross_axis_idx] ? child_fixed[cross_axis_idx] : child_pref[cross_axis_idx];
-        
+        int cross_size = child_pref[cross_axis_idx];
+        int cross_min = min_s[cross_axis_idx];
+        int cross_max = max_s[cross_axis_idx] > 0 ? max_s[cross_axis_idx] : available_cross_space;
+        cross_size = std::max(cross_min, std::min(cross_size, cross_max));
+
         switch (align) {
             case AlignItems::FlexStart:
                 child_pos[cross_axis_idx] = m_margin;
@@ -825,19 +837,17 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
                 break;
             case AlignItems::Stretch:
                 child_pos[cross_axis_idx] = m_margin;
-                child_size[cross_axis_idx] = child_fixed[cross_axis_idx] ? child_fixed[cross_axis_idx] : available_cross_space;
+                child_size[cross_axis_idx] = std::max(cross_min, std::min(available_cross_space, cross_max));
                 break;
             case AlignItems::Baseline:
-                // Simplified baseline alignment (treat as flex-start for now)
                 child_pos[cross_axis_idx] = m_margin;
                 child_size[cross_axis_idx] = cross_size;
                 break;
         }
-        
-        // Apply y_offset for window headers
+
         if (y_offset > 0)
             child_pos.y() += y_offset;
-            
+
         child->set_position(child_pos);
         child->set_size(child_size);
         child->perform_layout(ctx);

@@ -285,7 +285,7 @@ public:
     /// The spacing at the specified axis (row or column number, depending on the Orientation).
     int spacing(int axis) const { return m_spacing[axis]; }
     /// Sets the spacing for a specific axis.
-    void set_spacing(int axis, int spacing) { m_spacing[axis] = spacing; }
+    void set_spacing(Orientation axis, int spacing) { m_spacing[static_cast<int>(axis)] = spacing; }
     /// Sets the spacing for all axes.
     void set_spacing(int spacing) { m_spacing[0] = m_spacing[1] = spacing; }
 

@@ -32,6 +32,8 @@ Widget::Widget(Widget* parent)
     {
         DebugName = parent->DebugName;
         parent->add_child(this);
+		m_min_size = Vector2i(0,0);
+		m_max_size = parent->size();
     }
 }
 

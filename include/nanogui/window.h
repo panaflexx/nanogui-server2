@@ -99,7 +99,7 @@ struct WindowConfig {
         virtual bool check_vertical_resize(const Vector2i& mousePos);
     protected:
         std::string m_title;
-        Widget* m_button_panel;
+        Widget* m_button_panel=NULL;
         bool m_modal;
         bool m_drag;
         bool m_resize;
@@ -109,8 +109,8 @@ struct WindowConfig {
         bool m_draw_shadow;
         bool m_resizable;
         bool m_can_move;
-        bool m_can_snap;
         int m_snap_offset;
+        bool m_can_snap;
         Vector2i m_snap_tot_rel;
         Vector2i m_snap_init;
 };

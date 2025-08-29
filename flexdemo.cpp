@@ -57,7 +57,7 @@ public:
         });
 		// Set a window size (min), perform layout, then set a new size (regular) to 
 		// set the window minimum size.	
-		perform_layout();
+		//perform_layout();
 		window->set_size( this->size() );
 		m_rootWindow = window; // For resizing 
 

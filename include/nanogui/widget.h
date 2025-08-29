@@ -76,6 +76,11 @@ public:
     void set_size(const Vector2i& size) 
     {  m_size = size; }
 
+	const Vector2i& min_size() const { return m_min_size; }
+    void set_min_size(const Vector2i& size) {  m_min_size = size; }
+	const Vector2i& max_size() const { return m_min_size; }
+    void set_max_size(const Vector2i& size) {  m_max_size = size; }
+
     /// Return the width of the widget
     int width() const { return m_size.x(); }
     /// Set the width of the widget
@@ -95,9 +100,11 @@ public:
      * size; this is done with a call to \ref set_size or a call to \ref perform_layout()
      * in the parent widget.
      */
-    virtual void set_fixed_size(const Vector2i& fixed_size) {  m_fixed_size = fixed_size; }
+    //virtual void set_fixed_size(const Vector2i& fixed_size) {  m_fixed_size = fixed_size; }
+	virtual void set_fixed_size(const Vector2i& fixed_size) {  m_min_size = fixed_size; }
 
     /// Return the fixed size (see \ref set_fixed_size())
+	// FIXME Should be min size??
     const Vector2i& fixed_size() const { return m_fixed_size; }
 
     // Return the fixed width (see \ref set_fixed_size())
@@ -278,7 +285,8 @@ protected:
     Widget* m_parent;
     ref<Theme> m_theme;
     ref<Layout> m_layout;
-    Vector2i m_pos, m_size, m_fixed_size;
+    //Vector2i m_pos, m_size, m_fixed_size;
+	Vector2i m_pos, m_size, m_fixed_size, m_min_size, m_max_size;
     std::vector<Widget*> m_children;
     /**
      * Whether or not this Widget is currently visible.  When a Widget is not
