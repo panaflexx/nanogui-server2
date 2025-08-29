@@ -115,6 +115,10 @@ public:
     void set_fixed_width(int width) { m_fixed_size.x() = width; }
     /// Set the fixed height (see \ref set_fixed_size())
     void set_fixed_height(int height) { m_fixed_size.y() = height; }
+	/// Set the fixed width (see \ref set_fixed_size())
+    void set_min_width(int width) { m_min_size.x() = width; }
+    /// Set the fixed height (see \ref set_fixed_size())
+    void set_min_height(int height) { m_min_size.y() = height; }
 
     /// Return whether or not the widget is currently visible (assuming all parents are visible)
     bool visible() const { return m_visible; }

@@ -46,11 +46,12 @@ public:
         // Create a Split widget as the main container
         Split *split = new Split(window, Split::Orientation::Horizontal);
 		split->set_size( this->size());
+		split->set_min_size( 100 );
         
         // LEFT PANEL: Customer List
 		ScrollPanel *leftPanel = new ScrollPanel(split);
 		leftPanel->set_scroll_type(ScrollPanel::ScrollTypes::Vertical);
-		leftPanel->set_max_size( Vector2i(300, 500) );
+		leftPanel->set_min_width(300);
 
 		// CREATE A SINGLE CONTAINER WIDGET FOR THE SCROLLPANEL
 		Widget *leftContainer = new Widget(leftPanel);  // ScrollPanel has ONE child
@@ -72,7 +73,7 @@ public:
 		for (const auto& customer : customers) {
 			Widget *item = new Widget(leftContainer);  // Add to CONTAINER, not ScrollPanel
 			item->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Fill, 5, 5));
-			item->set_min_size( Vector2i(240, 30) );
+			item->set_min_size( Vector2i(140, 30) );
 			
 			// Add customer icon
 			Label *icon = new Label(item, "👤", "emoji", 14);
@@ -82,7 +83,7 @@ public:
 			Label *name = new Label(item, customer, "sans", 13);
 		}
 		Widget *padContainer = new Widget(leftContainer);
-		padContainer->set_min_size( Vector2i(100,500) );
+		padContainer->set_min_width( 100 );
 
 		// RIGHT PANEL: Existing form content
 		ScrollPanel *rightPanel = new ScrollPanel(split);
@@ -104,7 +105,7 @@ public:
 		add_spacer(contentContainer, mainLayout, 30);
         
         // Set initial split position (25% for left panel, 75% for right)
-        split->set_drag_position(0.25f);
+        split->set_drag_position(0.15f);
         
         perform_layout();
     }

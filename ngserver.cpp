@@ -249,7 +249,7 @@ private:
 			if (isRootWindow) {
 				// Set window size to match Screen size exactly
 				Vector2i screenSize = this->size();
-				window->set_fixed_size(screenSize);
+				window->set_size(screenSize);
 				m_rootWindow = window;
 			} else {
 				// Set dimensions if specified

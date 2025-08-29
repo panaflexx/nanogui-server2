@@ -688,25 +688,27 @@ public:
         CtrConsole_TopWindow->set_position(Vector2i(700, 400));
         CtrConsole_TopWindow->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill));
         CtrConsole_TopWindow->set_visible(true);
+        CtrConsole_TopWindow->set_size( Vector2i(500,250) );
 
         ScrollPanel* ScrollWidget = new ScrollPanel(CtrConsole_TopWindow);
         ScrollWidget->set_scroll_type(ScrollPanel::ScrollTypes::Both);
         ScrollWidget->DebugName = "Top";
+        ScrollWidget->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 15));// defaults: 2 columns
+/*
         // vscroll should only have *ONE* child. this is what `wrapper` is for
         auto WrapperWidget1 = new Widget(ScrollWidget);
         WrapperWidget1->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 15));// defaults: 2 columns
 
-
         ScrollPanel* ScrollConsole = new ScrollPanel(WrapperWidget1);
         ScrollConsole->set_scroll_type(ScrollPanel::ScrollTypes::Vertical);
-        ScrollConsole->set_fixed_height(250);
+        //ScrollConsole->set_fixed_height(250);
         ScrollConsole->DebugName = "Bottom";
 
-        auto WrapperWidget2 = new Widget(ScrollConsole);
+        auto WrapperWidget2 = new Widget(WrapperWidget1);
         WrapperWidget2->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 15));// defaults: 2 columns
+*/		
 
-
-        TextArea* CtrConsole_TextConsole = new TextArea(WrapperWidget2);
+        TextArea* CtrConsole_TextConsole = new TextArea(ScrollWidget);
         CtrConsole_TextConsole->set_padding(10);
         CtrConsole_TextConsole->set_selectable(true);
         CtrConsole_TextConsole->set_background_color(Color(0, 255));

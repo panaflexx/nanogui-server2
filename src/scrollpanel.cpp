@@ -71,13 +71,17 @@ void ScrollPanel::perform_layout(NVGcontext* ctx) {
     child->perform_layout(ctx);
 }
 
-bool ScrollPanel::keyboard_event(int key, int /* scancode */, int action, int modifiers) {
+// FIXME: Need to be able to capture side-scroll events DOES NOT WORK WITH TEXTBOX (focus problem)
+bool ScrollPanel::keyboard_event(int key, int scancode, int action, int modifiers) {
 	printf("keyboard_event: key=%d action=%d focused=%s\n", key, action,
 		focused()?"TRUE":"FALSE");
 
     if (focused()) {
 		if(modifiers == GLFW_MOD_SHIFT)
 			printf("Got shift!\n");
+
+		Widget* child = m_children[0];
+		child->keyboard_event(key, scancode, action, modifiers);
 		return true;
 	}
 	return false;

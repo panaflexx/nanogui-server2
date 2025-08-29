@@ -42,6 +42,7 @@ public:
         // ScrollPanel for scrolling content
         ScrollPanel* scrollPanel = new ScrollPanel(window);
         //scrollPanel->set_fixed_size(Vector2i(1080, 650));
+		scrollPanel->set_scroll_type(ScrollPanel::ScrollTypes::Vertical);
 
         // Content widget for test cases
         Widget* content = new Widget(scrollPanel);
@@ -66,7 +67,7 @@ public:
                     // Create a test case container
                     Widget* testCase = new Widget(content);
                     testCase->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 5, 5));
-                    testCase->set_fixed_width(1050);
+                    testCase->set_min_width(1050);
 
                     // Label the test case
                     std::string config = "Test " + std::to_string(test_index++) + ": " +
@@ -82,7 +83,7 @@ public:
                         // Row container
                         Widget* rowContainer = new Widget(testCase);
                         rowContainer->set_layout(new FlexLayout(direction, justify, align, 5, 5));
-                        rowContainer->set_fixed_height(80);
+                        rowContainer->set_min_height(80);
                         addWidgets(rowContainer, widget_count);
 
                         // Column container (if direction is Row, test orthogonal direction)
@@ -90,15 +91,15 @@ public:
                         colContainer->set_layout(new FlexLayout(
                             direction == FlexDirection::Row ? FlexDirection::Column : FlexDirection::Row,
                             justify, align, 5, 5));
-                        colContainer->set_fixed_height(80);
+                        colContainer->set_min_height(80);
                         addWidgets(colContainer, widget_count);
                     }
                 }
             }
         }
 
-        perform_layout(m_nvg_context);
         window->center();
+        perform_layout(m_nvg_context);
     }
 
 private:
@@ -118,7 +119,7 @@ private:
             [&]() -> Widget* {
                 TextBox* textbox = new TextBox(container);
                 textbox->set_placeholder("TextBox " + std::to_string(count));
-                textbox->set_fixed_width(150);
+                textbox->set_width(150);
                 return textbox;
             },
             [&]() -> Widget* {
@@ -133,7 +134,7 @@ private:
             Widget* widget = widgetFactories[i % widgetFactories.size()]();
             // Vary widget properties to test FlexItem
             if (i % 2 == 0) {
-                widget->set_fixed_size(Vector2i(100, 30)); // Fixed size for some widgets
+                widget->set_min_size(Vector2i(100, 30)); // Fixed size for some widgets
             } else {
                 FlexLayout::FlexItem item;
                 item.flex_grow = 1.0f;

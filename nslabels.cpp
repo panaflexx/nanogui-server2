@@ -164,7 +164,7 @@ private:
 
     virtual bool resize_event(const Vector2i &size) override {
         if (m_rootWindow) {
-            m_rootWindow->set_fixed_size(size);
+            m_rootWindow->set_size(size);
             perform_layout();
         }
         Screen::resize_event(size);
@@ -181,7 +181,7 @@ int main() {
             app->dec_ref();
             app->set_visible(true);
             app->draw_all();
-            nanogui::mainloop();
+            nanogui::mainloop(1/30.f * 1000);
         }
         
         nanogui::shutdown();

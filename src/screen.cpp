@@ -940,6 +940,32 @@ void Screen::resize_callback_event(int, int) {
 }
 
 void Screen::update_focus(Widget* widget) {
+    // First, notify all previously focused widgets that they're losing focus
+    for (auto w : m_focus_path) {
+        if (w != nullptr && w->focused())
+            w->focus_event(false);
+    }
+    
+    // Now clear the path and build the new one
+    m_focus_path.clear();
+    Widget* window = nullptr;
+    while (widget) {
+        m_focus_path.push_back(widget);
+        if (dynamic_cast<Window*>(widget))
+            window = widget;
+        widget = widget->parent();
+    }
+    
+    // Set focus to the new widgets
+    for (auto it = m_focus_path.rbegin(); it != m_focus_path.rend(); ++it)
+        (*it)->focus_event(true);
+        
+    if (window)
+        move_window_to_front((Window*)window);
+}
+
+/*
+void Screen::update_focus(Widget* widget) {
     m_focus_path.clear();
     Widget* window = nullptr;
     while (widget) {
@@ -953,6 +979,7 @@ void Screen::update_focus(Widget* widget) {
     if (window)
         move_window_to_front((Window*)window);
 }
+*/
 
 /*void Screen::update_focus(Widget* widget) {
     for (auto w : m_focus_path) {

@@ -40,7 +40,7 @@ public:
         Right
     };
 
-    TextBox(Widget *parent, const std::string &value = "Untitled");
+    TextBox(Widget *parent, const std::string &value = "");
 
     bool editable() const { return m_editable; }
     void set_editable(bool editable);

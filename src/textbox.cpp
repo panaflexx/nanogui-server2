@@ -455,6 +455,8 @@ bool TextBox::keyboard_event(int key, int /* scancode */, int action, int modifi
             } else if (key == GLFW_KEY_ENTER) {
                 if (!m_committed)
                     focus_event(false);
+            } else if (key == GLFW_KEY_ESCAPE) {
+                focus_event(false);
             } else if (key == GLFW_KEY_A && modifiers == SYSTEM_COMMAND_MOD) {
                 m_cursor_pos = (int) m_value_temp.length();
                 m_selection_pos = 0;
@@ -548,11 +550,8 @@ bool TextBox::delete_selection() {
         if (begin > end)
             std::swap(begin, end);
 
-        if (begin == end - 1)
-            m_value_temp.erase(m_value_temp.begin() + begin);
-        else
-            m_value_temp.erase(m_value_temp.begin() + begin,
-                               m_value_temp.begin() + end);
+        m_value_temp.erase(m_value_temp.begin() + begin,
+                           m_value_temp.begin() + end);
 
         m_cursor_pos = begin;
         m_selection_pos = -1;
@@ -561,6 +560,7 @@ bool TextBox::delete_selection() {
 
     return false;
 }
+
 
 void TextBox::update_cursor(NVGcontext *, float lastx,
                            const NVGglyphPosition *glyphs, int size) {
