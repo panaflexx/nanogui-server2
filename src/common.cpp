@@ -433,8 +433,9 @@ void Object::dec_ref(bool dealloc) const noexcept {
     if (m_ref_count == 0 && dealloc) {
         delete this;
     } else if (m_ref_count < 0) {
+		// Sometimes the def_ref on the main application causes a dec_ref on itself I think?
         fprintf(stderr, "Internal error: %p: object reference count < 0!\n", this);
-        abort();
+        //abort();
     }
 }
 

@@ -268,7 +268,7 @@ Vector2i GridLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const
         + std::max((int)grid[1].size() - 1, 0) * m_spacing[1]
     );
 
-	printf("Grid computed size: %d, %d\n", size[0], size[1]);
+	//printf("Grid computed size: %d, %d\n", size[0], size[1]);
 
     const Window* window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty())

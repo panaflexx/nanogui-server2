@@ -495,6 +495,7 @@ if (NANOGUI_BUILD_EXAMPLES)
   add_executable(flexdemo 	   flexdemo.cpp)
   add_executable(flexsample    flexsample.cpp)
   add_executable(flextest 	   flextest.cpp)
+  add_executable(guieditor     guieditor.cpp)
 
   target_link_libraries(example1      nanogui)
   target_link_libraries(example2      nanogui)
@@ -507,6 +508,7 @@ if (NANOGUI_BUILD_EXAMPLES)
   target_link_libraries(flexsample	  nanogui)
   target_link_libraries(flextest	  nanogui)
   target_link_libraries(nanovg-colorfont-atlas nanogui ${NANOGUI_LIBS})
+  target_link_libraries(guieditor nanogui ${NANOGUI_LIBS})
 
   # Copy icons for example application
   file(COPY resources/icons DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
