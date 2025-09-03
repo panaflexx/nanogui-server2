@@ -47,6 +47,10 @@ Widget::~Widget() {
 		this->DebugName.c_str()
 	);
 #endif
+    if (this->screen()) {
+        this->screen()->notify_widget_destroyed(this);
+    }
+
     if (std::uncaught_exceptions() > 0) {
         /* If a widget constructor throws an exception, it is immediately
            dealloated but may still be referenced by a parent. Be conservative

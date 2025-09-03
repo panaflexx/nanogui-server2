@@ -777,11 +777,10 @@ void Screen::cursor_pos_callback_event(double x, double y) {
                 m_cursor = widget->cursor();
                 glfwSetCursor(m_glfw_window, m_cursors[(int)m_cursor]);
             }
-        }
-        else {
-            ret = m_drag_widget->mouse_drag_event(
-                p - m_drag_widget->parent()->absolute_position(), p - m_mouse_pos,
-                m_mouse_state, m_modifiers);
+        } else {
+			ret = m_drag_widget->mouse_drag_event(
+				p - m_drag_widget->parent()->absolute_position(), p - m_mouse_pos,
+				m_mouse_state, m_modifiers);
         }
 
         if (!ret)
@@ -939,6 +938,7 @@ void Screen::resize_callback_event(int, int) {
     redraw();
 }
 
+/*
 void Screen::update_focus(Widget* widget) {
     // First, notify all previously focused widgets that they're losing focus
     for (auto w : m_focus_path) {
@@ -963,6 +963,7 @@ void Screen::update_focus(Widget* widget) {
     if (window)
         move_window_to_front((Window*)window);
 }
+*/
 
 /*
 void Screen::update_focus(Widget* widget) {
@@ -981,7 +982,7 @@ void Screen::update_focus(Widget* widget) {
 }
 */
 
-/*void Screen::update_focus(Widget* widget) {
+void Screen::update_focus(Widget* widget) {
     for (auto w : m_focus_path) {
         if (w == nullptr || !w->focused())
             continue;
@@ -1000,7 +1001,7 @@ void Screen::update_focus(Widget* widget) {
 
     if (window)
         move_window_to_front((Window*)window);
-}*/
+}
 
 void Screen::dispose_window(Window* window) {
     if (std::find(m_focus_path.begin(), m_focus_path.end(), window) != m_focus_path.end())

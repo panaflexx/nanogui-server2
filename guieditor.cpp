@@ -778,6 +778,7 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     
     test_mode_checkbox = new CheckBox(testModeRow, "Test Mode");
     test_mode_checkbox->set_callback([this](bool checked) {
+		selected_widget = nullptr; // deselect current widget focus
         TestModeManager::getInstance()->setTestModeEnabled(checked);
         
         // Force redraw to update all widgets' appearance
@@ -792,7 +793,14 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     // Properties pane
     new Label(editor_win, "Properties", "sans-bold");
     properties_pane = new Widget(editor_win);
-    properties_pane->set_layout(new GroupLayout());
+    // properties_pane->set_layout(new GroupLayout());
+    // UPDATED: Use GridLayout instead of GroupLayout for better alignment
+    GridLayout* layout = new GridLayout(Orientation::Horizontal, 2, 
+                                       Alignment::Middle, 15, 5);
+    layout->set_col_alignment({ Alignment::Maximum, Alignment::Fill });
+    layout->set_spacing(Orientation::Horizontal, 10);
+    properties_pane->set_layout(layout);
+
     update_properties();
 
     // Canvas window (empty for placing widgets)
@@ -804,6 +812,155 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     perform_layout();
 }
 
+void GUIEditor::update_properties() {
+    // Clear existing properties
+    while (properties_pane->child_count() > 0) {
+        properties_pane->remove_child(properties_pane->child_at(properties_pane->child_count() - 1));
+    }
+
+    if (!selected_widget) {
+        new Label(properties_pane, "No widget selected");
+        return;
+    }
+
+    /* WIDGET TYPE DISPLAY */
+    new Label(properties_pane, "Widget Type:", "sans-bold");
+    TextBox *type_box = new TextBox(properties_pane);
+    type_box->set_value(getWidgetTypeName(selected_widget));
+    type_box->set_editable(false);
+    type_box->set_fixed_height(20);
+
+    /* UNIQUE ID DISPLAY */
+    new Label(properties_pane, "ID:", "sans-bold");
+    TextBox *id_box = new TextBox(properties_pane);
+    id_box->set_value(selected_widget->id());
+    id_box->set_callback([this](const std::string &v) {
+        selected_widget->set_id(v);
+        return true;
+    });
+    id_box->set_fixed_height(20);
+
+    /* POSITION X */
+    new Label(properties_pane, "Position X:", "sans-bold");
+    IntBox<int> *pos_x = new IntBox<int>(properties_pane);
+    pos_x->set_value(selected_widget->position().x());
+    pos_x->set_callback([this](int v) {
+        Vector2i pos = selected_widget->position();
+        pos.x() = v;
+        selected_widget->set_position(pos);
+        return true;
+    });
+    pos_x->set_fixed_height(20);
+
+    /* POSITION Y */
+    new Label(properties_pane, "Position Y:", "sans-bold");
+    IntBox<int> *pos_y = new IntBox<int>(properties_pane);
+    pos_y->set_value(selected_widget->position().y());
+    pos_y->set_callback([this](int v) {
+        Vector2i pos = selected_widget->position();
+        pos.y() = v;
+        selected_widget->set_position(pos);
+        return true;
+    });
+    pos_y->set_fixed_height(20);
+
+    /* WIDTH */
+    new Label(properties_pane, "Width:", "sans-bold");
+    IntBox<int> *width_box = new IntBox<int>(properties_pane);
+    width_box->set_value(selected_widget->width());
+    width_box->set_callback([this](int v) {
+        Vector2i size = selected_widget->size();
+        size.x() = v;
+        selected_widget->set_fixed_size(size);
+        return true;
+    });
+    width_box->set_fixed_height(20);
+
+    /* HEIGHT */
+    new Label(properties_pane, "Height:", "sans-bold");
+    IntBox<int> *height_box = new IntBox<int>(properties_pane);
+    height_box->set_value(selected_widget->height());
+    height_box->set_callback([this](int v) {
+        Vector2i size = selected_widget->size();
+        size.y() = v;
+        selected_widget->set_fixed_size(size);
+        return true;
+    });
+    height_box->set_fixed_height(20);
+
+    /* BACKGROUND COLOR */
+    new Label(properties_pane, "BG Color:", "sans-bold");
+    ColorPicker *bg_color = new ColorPicker(properties_pane);
+    bg_color->set_callback([this](const Color &c) {
+        //selected_widget->set_background_color(c);
+        //(void)c;
+		printf("FIXME: Set background if applicable...\n");
+    });
+
+    // TYPE-SPECIFIC PROPERTIES
+    if (Label *lbl = dynamic_cast<Label *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(lbl->caption());
+        caption_box->set_callback([lbl](const std::string &v) {
+            lbl->set_caption(v);
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(btn->caption());
+        caption_box->set_callback([btn](const std::string &v) {
+            btn->set_caption(v);
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (TextBox *tb = dynamic_cast<TextBox *>(selected_widget)) {
+        new Label(properties_pane, "Value:", "sans-bold");
+        TextBox *value_box = new TextBox(properties_pane);
+        value_box->set_value(tb->value());
+        value_box->set_callback([tb](const std::string &v) {
+            tb->set_value(v);
+            return true;
+        });
+        value_box->set_fixed_height(20);
+    } else if (ComboBox *cb = dynamic_cast<ComboBox *>(selected_widget)) {
+        new Label(properties_pane, "Items:", "sans-bold");
+        TextArea *items_area = new TextArea(properties_pane);
+        std::string items_str;
+        for (const auto &item : cb->items()) {
+            items_str += item + "\n";
+        }
+        items_area->clear();
+        items_area->append(items_str);
+    } else if (CheckBox *chk = dynamic_cast<CheckBox *>(selected_widget)) {
+        new Label(properties_pane, "Checked:", "sans-bold");
+        CheckBox *checked_box = new CheckBox(properties_pane, "");
+        checked_box->set_checked(chk->checked());
+        checked_box->set_callback([chk](bool state) {
+            chk->set_checked(state);
+        });
+    } else if (Slider *sld = dynamic_cast<Slider *>(selected_widget)) {
+        new Label(properties_pane, "Value:", "sans-bold");
+        TextBox *slider_value = new TextBox(properties_pane);
+        slider_value->set_value(std::to_string(sld->value()));
+        slider_value->set_callback([sld](const std::string &v) {
+            try {
+                float val = std::stof(v);
+                sld->set_value(val);
+                return true;
+            } catch (...) {
+                return false;
+            }
+        });
+        slider_value->set_fixed_height(20);
+    }
+
+    perform_layout();
+}
+
+#if 0
 void GUIEditor::update_properties() {
     // Clear existing properties
     while (properties_pane->child_count() > 0) {
@@ -926,6 +1083,7 @@ void GUIEditor::update_properties() {
 
     perform_layout();
 }
+#endif // 0
 
 std::string GUIEditor::getWidgetTypeName(Widget *widget) {
     if (dynamic_cast<TestWindow *>(widget)) return "Window";
@@ -958,6 +1116,10 @@ std::string GUIEditor::generateUniqueId(int icon) {
 
 bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
     m_redraw = true; // force redraw on all mouse events
+
+	if (Screen::mouse_button_event(p, button, down, modifiers)) {
+        return true;
+    }
 
     if (!TestModeManager::getInstance()->isTestModeEnabled() &&
 				button == GLFW_MOUSE_BUTTON_1) 
@@ -1082,9 +1244,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
             }
         }
     }
-    if (Screen::mouse_button_event(p, button, down, modifiers)) {
-        return true;
-    }
+
     return false;
 }
 

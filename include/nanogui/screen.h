@@ -233,6 +233,20 @@ public:
         this->perform_layout(m_nvg_context);
     }
 
+	void notify_widget_destroyed(Widget* widget) {
+		// Clear drag widget if it's being destroyed
+		if (m_drag_widget == widget) {
+			m_drag_widget = nullptr;
+			m_drag_active = false;
+		}
+		
+		// Also clear from focus path
+		auto it = std::find(m_focus_path.begin(), m_focus_path.end(), widget);
+		if (it != m_focus_path.end()) {
+			m_focus_path.erase(it);
+		}
+	}
+
 public:
     /********* API for applications which manage GLFW themselves *********/
 
