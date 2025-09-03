@@ -201,6 +201,9 @@ public:
     const std::string& tooltip() const { return m_tooltip; }
     void set_tooltip(const std::string& tooltip) { m_tooltip = tooltip; }
 
+    const std::string& id() const { return m_id; }
+    void set_id(const std::string& id) { m_id = id; }
+
     /// Return current font size. If not set the default of the current theme will be returned
     int font_size() const;
     /// Set the font size of this widget
@@ -306,7 +309,7 @@ protected:
      */
     bool m_enabled;
     bool m_focused, m_mouse_focus;
-    std::string m_tooltip;
+    std::string m_tooltip, m_id;
     int m_font_size;
 
     /**

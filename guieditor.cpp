@@ -58,6 +58,631 @@ using namespace nanogui;
 using std::vector;
 using std::function;
 
+/* NEW: TEST MODE MANAGER - SINGLETON TO TRACK TEST MODE STATE */
+class TestModeManager {
+private:
+    bool m_testModeEnabled = false;
+    static TestModeManager* instance;
+    
+    TestModeManager() {}
+    
+public:
+    static TestModeManager* getInstance() {
+        if (!instance) {
+            instance = new TestModeManager();
+        }
+        return instance;
+    }
+    
+    bool isTestModeEnabled() const { return m_testModeEnabled; }
+    void setTestModeEnabled(bool enabled) { m_testModeEnabled = enabled; }
+};
+
+TestModeManager* TestModeManager::instance = nullptr;
+
+/* BASE CLASS FOR ALL TEST-MODE WIDGETS */
+class TestWidget : public Widget {
+public:
+    TestWidget(Widget *parent) : Widget(parent) {}
+    
+    /* OVERRIDE: Block input events when test mode is OFF */
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false; // Block event when test mode is off
+        }
+        return Widget::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Widget::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Widget::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Widget::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Widget::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Widget::keyboard_character_event(codepoint);
+    }
+    
+    /* OVERRIDE: Draw red border when test mode is OFF */
+    virtual void draw(NVGcontext *ctx) override {
+        // First draw the base widget
+        Widget::draw(ctx);
+        
+        // Draw indicator border when not in test mode
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255)); // Red border
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+/* NEW: TEST-MODE SPECIFIC WIDGET CLASSES */
+class TestLabel : public Label {
+public:
+    TestLabel(Widget *parent, const std::string &caption = "", const std::string &font = "sans") 
+        : Label(parent, caption, font) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Label::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Label::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Label::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Label::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Label::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Label::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        Label::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+			/*
+            nvgFontSize(ctx, 16.0f);
+            nvgFontFace(ctx, "sans");
+            nvgTextAlign(ctx, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+            nvgFillColor(ctx, Color(255, 255, 255, 255));
+            nvgText(ctx, m_pos.x() + m_size.x() / 2, m_pos.y() + m_size.y() / 2, "(test)", nullptr);
+			*/
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestButton : public Button {
+public:
+    TestButton(Widget *parent, const std::string &caption = "", int icon = 0) 
+        : Button(parent, caption, icon) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Button::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Button::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Button::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Button::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Button::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Button::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        Button::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestTextBox : public TextBox {
+public:
+    TestTextBox(Widget *parent) : TextBox(parent) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return TextBox::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return TextBox::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return TextBox::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return TextBox::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return TextBox::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return TextBox::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        TextBox::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+            nvgFontSize(ctx, 12.0f);
+            nvgFontFace(ctx, "sans");
+            nvgFillColor(ctx, Color(255, 0, 0, 255));
+            nvgText(ctx, m_pos.x() + 5, m_pos.y() + 15, "EDIT MODE OFF", nullptr);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestComboBox : public ComboBox {
+public:
+    TestComboBox(Widget *parent, const std::vector<std::string> &items = {}) 
+        : ComboBox(parent, items) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ComboBox::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ComboBox::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ComboBox::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ComboBox::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ComboBox::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ComboBox::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        ComboBox::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() + 2, m_pos.y() + 2, m_size.x() - 4, m_size.y() - 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.0f);
+            nvgStroke(ctx);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestCheckBox : public CheckBox {
+public:
+    TestCheckBox(Widget *parent, const std::string &caption = "",
+                const std::function<void(bool)> &callback = {}) 
+        : CheckBox(parent, caption, callback) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return CheckBox::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return CheckBox::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return CheckBox::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return CheckBox::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return CheckBox::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return CheckBox::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        CheckBox::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+            nvgBeginPath(ctx);
+            nvgCircle(ctx, m_pos.x() + 10, m_pos.y() + 10, 8);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestSlider : public Slider {
+public:
+    TestSlider(Widget *parent) : Slider(parent) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Slider::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Slider::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Slider::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Slider::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Slider::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Slider::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        Slider::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 5, m_size.x() + 4, m_size.y() + 10);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestColorPicker : public ColorPicker {
+public:
+    TestColorPicker(Widget *parent, const Color &color = Color(0, 255)) 
+        : ColorPicker(parent, color) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ColorPicker::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ColorPicker::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ColorPicker::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ColorPicker::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ColorPicker::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return ColorPicker::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        ColorPicker::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+            nvgBeginPath(ctx);
+            nvgRoundedRect(ctx, m_pos.x() - 2, m_pos.y() - 2, m_size.x() + 4, m_size.y() + 4, 4);
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 1.5f);
+            nvgStroke(ctx);
+            
+            nvgFontSize(ctx, 12.0f);
+            nvgFontFace(ctx, "sans");
+            nvgFillColor(ctx, Color(255, 255, 255, 255));
+            nvgTextAlign(ctx, NVG_ALIGN_CENTER);
+            nvgText(ctx, m_pos.x() + m_size.x() / 2, m_pos.y() + m_size.y() / 2 + 15, "DISABLED", nullptr);
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestWindow : public Window {
+public:
+    TestWindow(Widget *parent, const std::string &title = "", bool modal = false) 
+        : Window(parent, title, modal) {}
+    
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Window::mouse_button_event(p, button, down, modifiers);
+    }
+    
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Window::mouse_motion_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Window::scroll_event(p, rel);
+    }
+    
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Window::mouse_drag_event(p, rel, button, modifiers);
+    }
+    
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Window::keyboard_event(key, scancode, action, modifiers);
+    }
+    
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Window::keyboard_character_event(codepoint);
+    }
+    
+    virtual void draw(NVGcontext *ctx) override {
+        Window::draw(ctx);
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+            nvgStrokeWidth(ctx, 2.0f);
+            nvgStroke(ctx);
+            
+            nvgFontSize(ctx, 14.0f);
+            nvgFontFace(ctx, "sans");
+            nvgFillColor(ctx, Color(255, 255, 255, 255));
+            nvgTextAlign(ctx, NVG_ALIGN_CENTER);
+            nvgText(ctx, m_pos.x() + m_size.x() / 2, m_pos.y() + 20, "TEST MODE: OFF", nullptr);
+            nvgRestore(ctx);
+        }
+    }
+};
+
 class GUIEditor: public Screen {
 public:
     Widget *selected_widget = nullptr;
@@ -80,6 +705,9 @@ public:
     int colorpicker_count = 0;
     int graph_count = 0;
     int image_count = 0;
+
+    /* ADDED: TEST MODE TOGGLE */
+    CheckBox *test_mode_checkbox = nullptr;
 
     void update_properties() {
         // Clear existing properties
@@ -158,6 +786,7 @@ public:
         ColorPicker *bg_color = new ColorPicker(properties_pane); //, selected_widget->background_color());
         bg_color->set_callback([this](const Color &c) {
             //selected_widget->set_background_color(c);
+            (void)c;
         });
 
         // Type-specific properties
@@ -205,16 +834,15 @@ public:
 
     /* ADDED: HELPER FUNCTION TO GET WIDGET TYPE NAME */
     std::string getWidgetTypeName(Widget *widget) {
-        if (dynamic_cast<Window *>(widget)) return "Window";
-        if (dynamic_cast<Label *>(widget)) return "Label";
-        if (dynamic_cast<Button *>(widget)) return "Button";
-        if (dynamic_cast<TextBox *>(widget)) return "Text Box";
-        if (dynamic_cast<ComboBox *>(widget)) return "Dropdown";
-        if (dynamic_cast<CheckBox *>(widget)) return "Checkbox";
-        if (dynamic_cast<Slider *>(widget)) return "Slider";
-        if (dynamic_cast<ColorPicker *>(widget)) return "Color Picker";
-        if (dynamic_cast<Graph *>(widget)) return "Graph";
-        if (dynamic_cast<Widget *>(widget)) return "Pane";
+        if (dynamic_cast<TestWindow *>(widget)) return "Window";
+        if (dynamic_cast<TestLabel *>(widget)) return "Label";
+        if (dynamic_cast<TestButton *>(widget)) return "Button";
+        if (dynamic_cast<TestTextBox *>(widget)) return "Text Box";
+        if (dynamic_cast<TestComboBox *>(widget)) return "Dropdown";
+        if (dynamic_cast<TestCheckBox *>(widget)) return "Checkbox";
+        if (dynamic_cast<TestSlider *>(widget)) return "Slider";
+        if (dynamic_cast<TestColorPicker *>(widget)) return "Color Picker";
+        if (dynamic_cast<TestWidget *>(widget)) return "Pane";
         return "Widget";
     }
 
@@ -299,6 +927,23 @@ public:
             tool_buttons.push_back(tb);
         }
 
+        // Test mode toggle
+        Widget *testModeRow = new Widget(editor_win);
+        testModeRow->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Fill, 0, 5));
+        
+        test_mode_checkbox = new CheckBox(testModeRow, "Test Mode");
+        test_mode_checkbox->set_callback([this](bool checked) {
+            TestModeManager::getInstance()->setTestModeEnabled(checked);
+            
+            // Force redraw to update all widgets' appearance
+            perform_layout();
+            draw_all();
+        });
+        
+        // Set initial state
+        test_mode_checkbox->set_checked(false);
+        TestModeManager::getInstance()->setTestModeEnabled(false);
+
         // Properties pane
         new Label(editor_win, "Properties", "sans-bold");
         properties_pane = new Widget(editor_win);
@@ -320,11 +965,12 @@ public:
 
         if (button == GLFW_MOUSE_BUTTON_1) {
             Vector2i canvas_pos = p - canvas_win->position();
-            if (canvas_win->contains(p - canvas_win->absolute_position())) { // Adjust for screen pos
+            if (canvas_win->contains(p)) { // Contains checks constraints
                 if (down) {
                     // Check for selection or start drag
                     bool hit_widget = false;
                     if (current_tool == FA_MOUSE_POINTER) {
+                        // Find widget in test mode aware manner
                         Widget *child = canvas_win->find_widget(m_mouse_pos);
                         if (child) {
                             printf("Selected widget %s\n", child->id().c_str());
@@ -337,13 +983,13 @@ public:
                     }
 
                     if (!hit_widget && current_tool != FA_MOUSE_POINTER && current_tool != 0) {
-                        // Place new widget
+                        // Place new widget using test-aware versions
                         Widget *new_w = nullptr;
                         switch (current_tool) {
                             case FA_WINDOW_MAXIMIZE: {
-                                Window *sub_win = new Window(canvas_win, "New Window");
+                                TestWindow *sub_win = new TestWindow(canvas_win, "New Window");
                                 sub_win->set_position(canvas_pos);
-                                sub_win->set_fixed_size(Vector2i(200, 150));
+                                sub_win->set_size(Vector2i(200, 150));
                                 sub_win->set_layout(new GroupLayout());
                                 new_w = sub_win;
                                 
@@ -351,33 +997,8 @@ public:
                                 new_w->set_id(generateUniqueId(current_tool));
                             }
                             break;
-                            case FA_TH: {
-                                Widget *pane = new Widget(canvas_win);
-                                pane->set_position(canvas_pos);
-                                pane->set_fixed_size(Vector2i(150, 100));
-                                pane->set_layout(new BoxLayout(Orientation::Vertical));
-                                new_w = pane;
-                                
-                                /* ADDED: SET UNIQUE ID */
-                                new_w->set_id(generateUniqueId(current_tool));
-                            }
-                            break;
-                            case FA_COLUMNS: {
-                                // Simple split simulation with two widgets side by side
-                                Widget *split = new Widget(canvas_win);
-                                split->set_position(canvas_pos);
-                                split->set_fixed_size(Vector2i(200, 100));
-                                split->set_layout(new BoxLayout(Orientation::Horizontal));
-                                new Widget(split); // Left
-                                new Widget(split); // Right
-                                new_w = split;
-                                
-                                /* ADDED: SET UNIQUE ID */
-                                new_w->set_id(generateUniqueId(current_tool));
-                            }
-                            break;
                             case FA_TAG: {
-                                Label *lbl = new Label(canvas_win, "Label");
+                                TestLabel *lbl = new TestLabel(canvas_win, "Label");
                                 lbl->set_position(canvas_pos);
                                 lbl->set_fixed_size(Vector2i(100, 20));
                                 new_w = lbl;
@@ -386,8 +1007,18 @@ public:
                                 new_w->set_id(generateUniqueId(current_tool));
                             }
                             break;
+                            case FA_HAND_POINT_UP: {
+                                TestButton *btn = new TestButton(canvas_win, "Button");
+                                btn->set_position(canvas_pos);
+                                btn->set_fixed_size(Vector2i(100, 25));
+                                new_w = btn;
+                                
+                                /* ADDED: SET UNIQUE ID */
+                                new_w->set_id(generateUniqueId(current_tool));
+                            }
+                            break;
                             case FA_KEYBOARD: {
-                                TextBox *tb = new TextBox(canvas_win);
+                                TestTextBox *tb = new TestTextBox(canvas_win);
                                 tb->set_position(canvas_pos);
                                 tb->set_fixed_size(Vector2i(150, 25));
                                 tb->set_value("Text");
@@ -397,18 +1028,8 @@ public:
                                 new_w->set_id(generateUniqueId(current_tool));
                             }
                             break;
-                            case FA_HAND_POINT_UP: {
-                                Button *btn = new Button(canvas_win, "Button");
-                                btn->set_position(canvas_pos);
-                                btn->set_fixed_size(Vector2i(100, 25));
-                                new_w = btn;
-                                
-                                /* ADDED: SET UNIQUE ID */
-                                new_w->set_id(generateUniqueId(current_tool));
-                            }
-                            break;
                             case FA_CARET_DOWN: {
-                                ComboBox *cb = new ComboBox(canvas_win, {"Item 1", "Item 2"});
+                                TestComboBox *cb = new TestComboBox(canvas_win, {"Item 1", "Item 2"});
                                 cb->set_position(canvas_pos);
                                 cb->set_fixed_size(Vector2i(150, 25));
                                 new_w = cb;
@@ -418,7 +1039,7 @@ public:
                             }
                             break;
                             case FA_CHECK_SQUARE: {
-                                CheckBox *cb = new CheckBox(canvas_win, "Checkbox");
+                                TestCheckBox *cb = new TestCheckBox(canvas_win, "Checkbox");
                                 cb->set_position(canvas_pos);
                                 cb->set_fixed_size(Vector2i(150, 25));
                                 new_w = cb;
@@ -428,7 +1049,7 @@ public:
                             }
                             break;
                             case FA_SLIDERS_H: {
-                                Slider *sl = new Slider(canvas_win);
+                                TestSlider *sl = new TestSlider(canvas_win);
                                 sl->set_position(canvas_pos);
                                 sl->set_fixed_size(Vector2i(150, 25));
                                 new_w = sl;
@@ -438,7 +1059,7 @@ public:
                             }
                             break;
                             case FA_PALETTE: {
-                                ColorPicker *cp = new ColorPicker(canvas_win, Color(255, 0, 0, 255));
+                                TestColorPicker *cp = new TestColorPicker(canvas_win, Color(255, 0, 0, 255));
                                 cp->set_position(canvas_pos);
                                 cp->set_fixed_size(Vector2i(100, 100));
                                 new_w = cp;
@@ -529,4 +1150,3 @@ int main(int /* argc */, char ** /* argv */) {
 
     return 0;
 }
-

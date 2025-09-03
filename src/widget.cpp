@@ -38,6 +38,15 @@ Widget::Widget(Widget* parent)
 }
 
 Widget::~Widget() {
+#define  DEBUG
+#ifdef DEBUG
+	#warning DEBUG ENABLED
+	if(m_id.length())
+		printf("~Widget id=%s debugname=%s\n", 
+		this->m_id.c_str(),
+		this->DebugName.c_str()
+	);
+#endif
     if (std::uncaught_exceptions() > 0) {
         /* If a widget constructor throws an exception, it is immediately
            dealloated but may still be referenced by a parent. Be conservative
