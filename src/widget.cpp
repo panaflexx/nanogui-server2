@@ -47,7 +47,9 @@ Widget::~Widget() {
 		this->DebugName.c_str()
 	);
 #endif
-    if (this->screen()) {
+	Screen* CanICastSreen = dynamic_cast<Screen*>(this);
+    bool screen_widget = CanICastSreen != NULL;
+    if (screen_widget) {
         this->screen()->notify_widget_destroyed(this);
     }
 

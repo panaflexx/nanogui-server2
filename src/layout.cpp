@@ -283,6 +283,9 @@ void GridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vect
     for (auto w : widget->children())
         visible_children += w->visible() ? 1 : 0;
 
+	if (visible_children == 0 || m_resolution == 0)
+        return;
+
     Vector2i dim;
     dim[axis1] = m_resolution;
     dim[axis2] = (int)((visible_children + m_resolution - 1) / m_resolution);
@@ -335,6 +338,12 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     if (window && !window->title().empty())
         extra[1] += window->theme()->m_window_header_height - m_margin / 2;
 
+    size_t num_children = widget->children().size();
+    size_t child = 0;
+
+	if (num_children == 0 || m_resolution == 0)
+        return;
+
     for (int i = 0; i < 2; i++) {
         int grid_size = 2 * m_margin + extra[i];
         for (int s : grid[i]) {
@@ -356,9 +365,6 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
 
     int axis1 = (int)m_orientation, axis2 = (axis1 + 1) % 2;
     Vector2i start = m_margin + extra;
-
-    size_t num_children = widget->children().size();
-    size_t child = 0;
 
     Vector2i pos = start;
     for (int i2 = 0; i2 < dim[axis2]; i2++) {
