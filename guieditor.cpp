@@ -1601,6 +1601,8 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                 drag_start = p;
                 // Store the offset from the widget's top-left corner to the click position
                 drag_offset = p - clicked_widget->absolute_position();
+                // Store the original parent for reparenting logic
+                original_parent = clicked_widget->parent();
             } else {
                 // Deselect if clicking on editor_win or outside a valid widget
                 selected_widget = nullptr;
@@ -1696,9 +1698,68 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                 return true;
             }
         }
-    } else if (!down) {
+    } else if (!down && dragging) {
+        // Handle reparenting when the mouse button is released
+        if (selected_widget) {
+            // Find the container under the mouse
+            Widget *new_parent = canvas_win;
+            Vector2i new_pos = p - canvas_win->absolute_position() - drag_offset;
+            for (Widget *child : canvas_win->children()) {
+                if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
+                    Vector2i child_pos = child->absolute_position();
+                    Vector2i child_size = child->size();
+                    Vector2i local_p = p - child_pos;
+                    if (local_p.x() >= 0 && local_p.y() >= 0 && local_p.x() < child_size.x() && local_p.y() < child_size.y()) {
+                        new_parent = child;
+                        new_pos = local_p - drag_offset;
+                        break;
+                    }
+                }
+            }
+            // Only reparent if the new parent is different, not editor_win, and not the widget itself
+            if (new_parent != selected_widget->parent() && new_parent->window() != editor_win && 
+                new_parent != selected_widget) {
+                // Reparent the widget
+                Widget* current_parent = selected_widget->parent();
+                if (current_parent) {
+					selected_widget->inc_ref(); // Prevent widget from being deleted
+                    current_parent->remove_child(selected_widget);
+                    new_parent->add_child(selected_widget);
+                    // Constrain position to new parent's bounds
+                    Vector2i parent_size = new_parent->size();
+                    Vector2i widget_size = selected_widget->size();
+                    new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+                    new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+                    selected_widget->set_position(new_pos);
+                    // Update layouts
+                    if (original_parent) {
+                        original_parent->perform_layout(m_nvg_context);
+                    }
+                    new_parent->perform_layout(m_nvg_context);
+                    perform_layout();
+                    update_properties();
+					selected_widget->dec_ref(); // Prevent widget from being deleted
+                }
+            } else {
+                // If not reparenting, ensure the position is updated in the current parent
+                Widget* current_parent = selected_widget->parent();
+                if (current_parent) {
+                    Vector2i parent_pos = current_parent->absolute_position();
+                    new_pos = p - parent_pos - drag_offset;
+                    Vector2i parent_size = current_parent->size();
+                    Vector2i widget_size = selected_widget->size();
+                    new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+                    new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+                    selected_widget->set_position(new_pos);
+                    current_parent->perform_layout(m_nvg_context);
+                    perform_layout();
+                    update_properties();
+                }
+            }
+        }
         dragging = false;
-        drag_offset = Vector2i(0, 0); // Reset offset when drag ends
+        drag_offset = Vector2i(0, 0); // Reset offset
+        original_parent = nullptr; // Reset original parent
     }
 
     return false;
@@ -1711,23 +1772,24 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
 
     if (dragging && !TestModeManager::getInstance()->isTestModeEnabled() && 
         (button & (1 << GLFW_MOUSE_BUTTON_1)) && selected_widget) {
-        // Calculate relative position within the parent, preserving the click offset
-        Widget* parent = selected_widget->parent();
-        if (!parent) return false; // Safety check
-        Vector2i parent_pos = parent->absolute_position();
+        // Find the container under the mouse
+        Widget *current_parent = selected_widget->parent();
+        if (!current_parent) return false; // Safety check
+        Vector2i parent_pos = current_parent->absolute_position();
         Vector2i new_pos = p - parent_pos - drag_offset;
-        
-        // Constrain position to parent's bounds
-        Vector2i parent_size = parent->size();
+
+        // Constrain position to current parent's bounds
+        Vector2i parent_size = current_parent->size();
         Vector2i widget_size = selected_widget->size();
         new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
         new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
-        
+
+        // Update position relative to current parent (reparenting happens on release)
         selected_widget->set_position(new_pos);
         drag_start = p; // Update drag_start to current mouse position
-        
+
         // Update parent layout if applicable
-        parent->perform_layout(m_nvg_context);
+        current_parent->perform_layout(m_nvg_context);
         perform_layout();
         update_properties();
         return true;
@@ -1738,23 +1800,24 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
 bool GUIEditor::mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
     if (!TestModeManager::getInstance()->isTestModeEnabled() && 
         dragging && selected_widget && (button & (1 << GLFW_MOUSE_BUTTON_1))) {
-        // Calculate relative position within the parent, preserving the click offset
-        Widget* parent = selected_widget->parent();
-        if (!parent) return false;
-        Vector2i parent_pos = parent->absolute_position();
-        Vector2i local_p = p - parent_pos - drag_offset;
-        
-        // Constrain position to parent's bounds
-        Vector2i parent_size = parent->size();
+        // Use current parent for position updates during drag
+        Widget *current_parent = selected_widget->parent();
+        if (!current_parent) return false;
+        Vector2i parent_pos = current_parent->absolute_position();
+        Vector2i new_pos = p - parent_pos - drag_offset;
+
+        // Constrain position to current parent's bounds
+        Vector2i parent_size = current_parent->size();
         Vector2i widget_size = selected_widget->size();
-        local_p.x() = std::max(0, std::min(local_p.x(), parent_size.x() - widget_size.x()));
-        local_p.y() = std::max(0, std::min(local_p.y(), parent_size.y() - widget_size.y()));
-        
-        selected_widget->set_position(local_p);
+        new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+        new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+
+        // Update position relative to current parent (reparenting happens on release)
+        selected_widget->set_position(new_pos);
         drag_start = p; // Update drag_start to current mouse position
-        
+
         // Update parent layout if applicable
-        parent->perform_layout(m_nvg_context);
+        current_parent->perform_layout(m_nvg_context);
         perform_layout();
         update_properties();
         return true;

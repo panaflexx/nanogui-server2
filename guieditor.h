@@ -43,6 +43,7 @@ public:
     Widget *selected_widget = nullptr;
     int current_tool = 0;
     bool dragging = false;
+	Widget* original_parent = nullptr;
     Vector2i drag_start, drag_offset;
     Window *canvas_win;
     Window *editor_win;
