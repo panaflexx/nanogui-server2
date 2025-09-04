@@ -790,7 +790,7 @@ void Screen::cursor_pos_callback_event(double x, double y) {
         m_redraw |= ret;
     }
     catch (const std::exception& e) {
-        std::cerr << "Caught exception in event handler: " << e.what() << std::endl;
+        std::cerr << "Screen::cursor_pos_callback_event: Caught exception in event handler: " << e.what() << std::endl;
     }
 }
 
@@ -858,7 +858,7 @@ void Screen::mouse_button_callback_event(int button, int action, int modifiers) 
         }
     }
     catch (const std::exception& e) {
-        std::cerr << "Caught exception in event handler: " << e.what() << std::endl;
+        std::cerr << "Screen::mouse_button_callback_event: Caught exception in event handler: " << e.what() << std::endl;
     }
 }
 
@@ -868,7 +868,7 @@ void Screen::key_callback_event(int key, int scancode, int action, int mods) {
         m_redraw |= keyboard_event(key, scancode, action, mods);
     }
     catch (const std::exception& e) {
-        std::cerr << "Caught exception in event handler: " << e.what() << std::endl;
+        std::cerr << "Screen::key_callback_event: Caught exception in event handler: " << e.what() << std::endl;
     }
 }
 
@@ -878,7 +878,7 @@ void Screen::char_callback_event(unsigned int codepoint) {
         m_redraw |= keyboard_character_event(codepoint);
     }
     catch (const std::exception& e) {
-        std::cerr << "Caught exception in event handler: " << e.what() << std::endl;
+        std::cerr << "Screen::char_callback_event: Caught exception in event handler: " << e.what() << std::endl;
     }
 }
 
