@@ -50,6 +50,7 @@ public:
     Window *editor_win;
     Widget *properties_pane;
     vector<Button *> tool_buttons;
+	std::vector<std::function<void()>> deferred_tasks;
 
     /* Counters for unique ID generation */
     int window_count = 0;

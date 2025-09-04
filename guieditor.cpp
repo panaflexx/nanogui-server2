@@ -332,6 +332,7 @@ class TestDropdown : public Dropdown {
 public:
     TestDropdown(Widget *parent, const std::vector<std::string> &items = {})
         : Dropdown(parent, Dropdown::ComboBox, "Dropdown") {
+
     }
 
     virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
@@ -391,81 +392,6 @@ public:
             nvgStrokeWidth(ctx, (editor && editor->selected_widget == this) ? 2.0f : 1.5f);
             nvgStroke(ctx);
 
-            // Draw inner red border only when not selected and test mode is OFF
-            if (!(editor && editor->selected_widget == this) && !TestModeManager::getInstance()->isTestModeEnabled()) {
-                nvgBeginPath(ctx);
-                nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
-                nvgStrokeColor(ctx, Color(255, 0, 0, 255));
-                nvgStrokeWidth(ctx, 1.0f);
-                nvgStroke(ctx);
-            }
-            nvgRestore(ctx);
-        }
-    }
-};
-
-class TestComboBox : public ComboBox {
-public:
-    TestComboBox(Widget *parent, const std::vector<std::string> &items = {}) 
-        : ComboBox(parent, items) {}
-    
-    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
-        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
-            return false;
-        }
-        return ComboBox::mouse_button_event(p, button, down, modifiers);
-    }
-    
-    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
-        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
-            return false;
-        }
-        return ComboBox::mouse_motion_event(p, rel, button, modifiers);
-    }
-    
-    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
-        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
-            return false;
-        }
-        return ComboBox::scroll_event(p, rel);
-    }
-    
-    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
-        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
-            return false;
-        }
-        return ComboBox::mouse_drag_event(p, rel, button, modifiers);
-    }
-    
-    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
-        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
-            return false;
-        }
-        return ComboBox::keyboard_event(key, scancode, action, modifiers);
-    }
-    
-    virtual bool keyboard_character_event(unsigned int codepoint) override {
-        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
-            return false;
-        }
-        return ComboBox::keyboard_character_event(codepoint);
-    }
-    
-    virtual void draw(NVGcontext *ctx) override {
-        ComboBox::draw(ctx);
-        
-        GUIEditor* editor = dynamic_cast<GUIEditor*>(screen());
-        Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
-        
-        // Draw borders when selected or test mode is OFF
-        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
-            nvgSave(ctx);
-            nvgBeginPath(ctx);
-            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
-            nvgStrokeColor(ctx, border);
-            nvgStrokeWidth(ctx, (editor && editor->selected_widget == this) ? 2.0f : 1.5f);
-            nvgStroke(ctx);
-            
             // Draw inner red border only when not selected and test mode is OFF
             if (!(editor && editor->selected_widget == this) && !TestModeManager::getInstance()->isTestModeEnabled()) {
                 nvgBeginPath(ctx);
@@ -883,7 +809,7 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     canvas_win->set_position(Vector2i(280, 15));
     canvas_win->set_size(Vector2i(700, 700));
     canvas_win->set_layout(nullptr); // Absolute positioning
-	canvas_win->set_id("CANVAS"); // Set ID for canvas_win
+    canvas_win->set_id("CANVAS"); // Set ID for canvas_win
 
     perform_layout();
 }
@@ -944,19 +870,6 @@ bool GUIEditor::update_properties() {
             return true;
         });
         caption_box->set_fixed_height(20);
-    } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
-        new Label(properties_pane, "Caption:", "sans-bold");
-        TextBox *caption_box = new TextBox(properties_pane);
-        caption_box->set_value(btn->caption());
-        caption_box->set_callback([this, btn](const std::string &v) {
-            if (!selected_widget) return false;
-            btn->set_caption(v);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-        caption_box->set_fixed_height(20);
     } else if (CheckBox *cb = dynamic_cast<CheckBox *>(selected_widget)) {
         new Label(properties_pane, "Caption:", "sans-bold");
         TextBox *caption_box = new TextBox(properties_pane);
@@ -996,29 +909,72 @@ bool GUIEditor::update_properties() {
             return true;
         });
         value_box->set_fixed_height(20);
-    } else if (ComboBox *cb = dynamic_cast<ComboBox *>(selected_widget)) {
-        new Label(properties_pane, "Items:", "sans-bold");
-        TextArea *items_area = new TextArea(properties_pane);
-        std::string items_str;
-        for (const auto &item : cb->items()) {
-            items_str += item + "\n";
-        }
-        items_area->clear();
-        items_area->append(items_str);
-        items_area->set_fixed_size(Vector2i(0, 60));
     } else if (Dropdown *dropdown = dynamic_cast<Dropdown *>(selected_widget)) {
-		new Label(properties_pane, "Items:", "sans-bold");
-		TextArea *items_area = new TextArea(properties_pane);
-		std::string items_str;
-		for (int i = 0; i < dropdown->popup()->child_count(); ++i) {
-			if (auto item = dropdown->popup()->item(i)) {
-				items_str += item->caption() + "\n";
-			}
-		}
-		items_area->clear();
-		items_area->append(items_str);
-		items_area->set_fixed_size(Vector2i(0, 60));
-	} 
+        new Label(properties_pane, "Items:", "sans-bold");
+        Widget *items_container = new Widget(properties_pane);
+        items_container->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 0, 5));
+        for (Widget *child : dropdown->popup()->children()) {
+            if (MenuItem *mi = dynamic_cast<MenuItem*>(child)) {
+                Widget *row = new Widget(items_container);
+                row->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
+                TextBox *caption_box = new TextBox(row);
+                caption_box->set_value(mi->caption());
+                caption_box->set_fixed_width(150);
+                caption_box->set_callback([this, mi](const std::string &v) {
+                    mi->set_caption(v);
+					/*
+                    if (!v.empty()) {
+                        mi->set_shortcuts({{GLFW_MOD_SUPER, (int)v[0]}});
+                    } else {
+                        mi->set_shortcuts({});
+                    }
+					*/
+                    perform_layout();
+                    redraw();
+                    return true;
+                });
+                Button *remove_btn = new Button(row, "", FA_MINUS);
+                remove_btn->set_fixed_width(30);
+                remove_btn->set_callback([this, mi, dropdown] {
+                    dropdown->popup()->remove_child(mi);
+					deferred_tasks.push_back([this] { update_properties(); });
+                });
+            }
+        }
+        // Add new item button
+        Widget *add_row = new Widget(items_container);
+        add_row->set_layout(new BoxLayout(Orientation::Horizontal));
+        Button *add_btn = new Button(add_row, "", FA_PLUS);
+        add_btn->set_fixed_width(30);
+        add_btn->set_callback([this, dropdown] {
+            std::string new_caption = "New Item";
+            dropdown->add_item({new_caption, new_caption + "_tooltip"}, 0, nullptr, {0,0}, true);
+            MenuItem *new_mi = dynamic_cast<MenuItem*>(dropdown->popup()->children().back());
+            if (new_mi) {
+                new_mi->set_callback([new_mi] { std::cout << "Selected item: " << new_mi->caption() << "\n"; });
+				/*
+                if (!new_caption.empty()) {
+                    new_mi->set_shortcuts({{GLFW_MOD_SUPER, (int)new_caption[0]}});
+                }
+				*/
+            }
+            //update_properties(); // Recursion is bad here
+			deferred_tasks.push_back([this] { update_properties(); });
+        });
+    } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(btn->caption());
+        caption_box->set_callback([this, btn](const std::string &v) {
+            if (!selected_widget) return false;
+            btn->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    }  
 
     /* LAYOUT CONTROLS - Only for container widgets */
     if (canHaveLayout(selected_widget)) {
@@ -1107,7 +1063,7 @@ bool GUIEditor::update_properties() {
     /* BACKGROUND COLOR */
     new Label(properties_pane, "BG Color:", "sans-bold");
     ColorPicker *bg_color = new ColorPicker(properties_pane);
-    bg_color->set_callback([this](const Color &c) {
+    bg_color->set_callback([this](const Color /*&c*/) {
         if (!selected_widget) return false;
         // Placeholder for background color implementation
         perform_layout();
@@ -1399,7 +1355,6 @@ std::string GUIEditor::getWidgetTypeName(Widget *widget) {
     if (dynamic_cast<TestLabel *>(widget)) return "Label";
     if (dynamic_cast<TestButton *>(widget)) return "Button";
     if (dynamic_cast<TestTextBox *>(widget)) return "Text Box";
-    if (dynamic_cast<TestComboBox *>(widget)) return "ComboBox";
     if (dynamic_cast<TestDropdown *>(widget)) return "Dropdown";
     if (dynamic_cast<TestCheckBox *>(widget)) return "Checkbox";
     if (dynamic_cast<TestSlider *>(widget)) return "Slider";
@@ -1410,7 +1365,7 @@ std::string GUIEditor::getWidgetTypeName(Widget *widget) {
 std::string GUIEditor::generateUniqueId(int icon) {
     switch (icon) {
         case FA_WINDOW_MAXIMIZE: return "WINDOW" + std::to_string(++window_count);
-		case FA_TH: return "PANE" + std::to_string(++pane_count);
+        case FA_TH: return "PANE" + std::to_string(++pane_count);
         case FA_TAG: return "LABEL" + std::to_string(++label_count);
         case FA_HAND_POINT_UP: return "BUTTON" + std::to_string(++button_count);
         case FA_KEYBOARD: return "TEXTBOX" + std::to_string(++textbox_count);
@@ -1517,39 +1472,41 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                     new_w->set_id(generateUniqueId(current_tool));
                 }
                 break;
-				/*
                 case FA_CARET_DOWN: {
-                    TestComboBox *cb = new TestComboBox(target_container, {"Item 1", "Item 2"});
-                    cb->set_position(relative_pos);
-                    cb->set_fixed_size(Vector2i(150, 25));
-                    new_w = cb;
+                    TestDropdown *dropdown = new TestDropdown(target_container);
+                    dropdown->set_position(relative_pos);
+                    dropdown->set_fixed_size(Vector2i(150, 25));
+                    dropdown->set_width(150);
+                    dropdown->set_text_color(Color(255, 255, 255, 255));
+                    std::vector<std::string> items = {"Item 1", "Item 2"};
+                    for (const auto& item : items) {
+                        std::vector<Shortcut> shortcuts;
+                        if (!item.empty()) {
+                            shortcuts = {{0, 0}};
+                        }
+                        dropdown->add_item(
+                            {item, item + "_item"}, 0,
+                            nullptr,
+                            shortcuts,
+                            true
+                        );
+                    }
+                    // Set item callbacks after adding
+                    for (Widget *child : dropdown->popup()->children()) {
+                        if (MenuItem *mi = dynamic_cast<MenuItem*>(child)) {
+                            mi->set_callback([mi] { std::cout << "Selected item: " << mi->caption() << "\n"; });
+                        }
+                    }
+					
+                    dropdown->set_selected_callback([dropdown](int idx) {
+                        if (auto item = dropdown->popup()->item(idx))
+                            std::cout << "Dropdown callback - Selected item: " << item->caption() << "\n";
+                    });
+				
+                    new_w = dropdown;
                     new_w->set_id(generateUniqueId(current_tool));
                 }
                 break;
-				*/
-				case FA_CARET_DOWN: {
-					TestDropdown *dropdown = new TestDropdown(target_container, {"Item 1", "Item 2"});
-					dropdown->set_position(relative_pos);
-					dropdown->set_fixed_size(Vector2i(150, 25));
-					dropdown->set_width(150);
-					dropdown->set_text_color(Color(255, 255, 255, 255));
-					std::vector<std::string> items = {"Item 1", "Item 2"};
-					for (const auto& item : items) {
-						dropdown->add_item(
-							{item, item + "_item"}, 0,
-							[item] { std::cout << "Selected item: " << item << "\n"; },
-							std::vector<Shortcut>{{0, -1}},
-							true
-						);
-					}
-					dropdown->set_selected_callback([dropdown](int idx) {
-						if (auto item = dropdown->popup()->item(idx))
-							std::cout << "Dropdown callback - Selected item: " << item->caption() << "\n";
-					});
-					new_w = dropdown;
-					new_w->set_id(generateUniqueId(current_tool));
-				}
-				break;
                 case FA_CHECK_SQUARE: {
                     TestCheckBox *cb = new TestCheckBox(target_container, "Checkbox");
                     cb->set_position(relative_pos);
@@ -1609,7 +1566,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                 // Reparent the widget
                 Widget* current_parent = selected_widget->parent();
                 if (current_parent) {
-					selected_widget->inc_ref(); // Prevent widget from being deleted
+                    selected_widget->inc_ref(); // Prevent widget from being deleted
                     current_parent->remove_child(selected_widget);
                     new_parent->add_child(selected_widget);
                     // Constrain position to new parent's bounds
@@ -1625,7 +1582,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                     new_parent->perform_layout(m_nvg_context);
                     perform_layout();
                     update_properties();
-					selected_widget->dec_ref(); // Prevent widget from being deleted
+                    selected_widget->dec_ref(); // Prevent widget from being deleted
                 }
             } else {
                 // If not reparenting, ensure the position is updated in the current parent
@@ -1653,6 +1610,12 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
 }
 
 bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
+	for (auto& task : deferred_tasks) {
+		printf("run task\n");
+        task();
+    }
+    deferred_tasks.clear();
+
     if (Screen::mouse_motion_event(p, rel, button, modifiers)) {
         return true;
     }
@@ -1713,44 +1676,44 @@ bool GUIEditor::mouse_drag_event(const Vector2i &p, const Vector2i &rel, int but
 }
 
 bool GUIEditor::keyboard_event(int key, int scancode, int action, int modifiers) {
-	if (Screen::keyboard_event(key, scancode, action, modifiers))
-		return true;
-	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-		set_visible(false);
-		return true;
-	}
-	return false;
+    if (Screen::keyboard_event(key, scancode, action, modifiers))
+        return true;
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+        set_visible(false);
+        return true;
+    }
+    return false;
 }
 
 void GUIEditor::draw(NVGcontext *ctx) {
-	Screen::draw(ctx);
+    Screen::draw(ctx);
 }
 
 int main(int /* argc */, char ** /* argv */) {
-		try {
-			nanogui::init();
+        try {
+            nanogui::init();
 
-			/* scoped variables */
-			{
-				ref<GUIEditor> app = new GUIEditor();
-				//app->dec_ref();
-				app->set_visible(true);
-				app->draw_all();
-				nanogui::mainloop();
-			}
+            /* scoped variables */
+            {
+                ref<GUIEditor> app = new GUIEditor();
+                //app->dec_ref();
+                app->set_visible(true);
+                app->draw_all();
+                nanogui::mainloop();
+            }
 
-			nanogui::shutdown();
-		} catch (const std::exception &e) {
-			std::string error_msg = std::string("Caught a fatal error: ") + std::string(e.what());
+            nanogui::shutdown();
+        } catch (const std::exception &e) {
+            std::string error_msg = std::string("Caught a fatal error: ") + std::string(e.what());
 #if defined(_WIN32)
-			MessageBoxA(nullptr, error_msg.c_str(), NULL, MB_ICONERROR | MB_OK);
+            MessageBoxA(nullptr, error_msg.c_str(), NULL, MB_ICONERROR | MB_OK);
 #else
-			std::cerr << error_msg << std::endl;
+            std::cerr << error_msg << std::endl;
 #endif
-			return -1;
-		} catch (...) {
-			std::cerr << "Caught an unknown error!" << std::endl;
-		}
+            return -1;
+        } catch (...) {
+            std::cerr << "Caught an unknown error!" << std::endl;
+        }
 
-		return 0;
+        return 0;
 }
