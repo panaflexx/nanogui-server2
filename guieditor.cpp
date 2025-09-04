@@ -19,9 +19,11 @@
 #include <nanogui/graph.h>
 #include <nanogui/imagepanel.h>
 #include <nanogui/folderdialog.h>
+#include <nanogui/textarea.h>
 
 #include <iostream>
 #include <memory>
+#include <sstream>
 
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
@@ -105,16 +107,15 @@ public:
     /* OVERRIDE: Draw border (green if selected, red if test mode is OFF and not selected) */
     virtual void draw(NVGcontext *ctx) override {
         Widget::draw(ctx);
-		printf("draw widget\n");
         
         GUIEditor* editor = dynamic_cast<GUIEditor*>(screen());
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw border only when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
-            nvgRect(ctx, m_pos.x()+1, m_pos.y()+1, m_size.x()-1, m_size.y()-1);
+            nvgRect(ctx, m_pos.x() + 1, m_pos.y() + 1, m_size.x() - 1, m_size.y() - 1);
             nvgStrokeColor(ctx, border);
             nvgStrokeWidth(ctx, (editor && editor->selected_widget == this) ? 2.0f : 1.5f);
             nvgStroke(ctx);
@@ -178,7 +179,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw border only when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -244,7 +245,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw border only when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -309,7 +310,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw border and text when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -383,7 +384,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw borders when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -459,7 +460,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw borders when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -533,7 +534,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw borders when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -568,6 +569,7 @@ public:
     
     virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
         if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false; // Fixed: Added return statement
         }
         return ColorPicker::mouse_motion_event(p, rel, button, modifiers);
     }
@@ -607,7 +609,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw borders and text when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -688,7 +690,7 @@ public:
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw border and text when selected or test mode is OFF
-        if ( (editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
             nvgSave(ctx);
             nvgBeginPath(ctx);
             nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
@@ -779,7 +781,7 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     
     test_mode_checkbox = new CheckBox(testModeRow, "Test Mode");
     test_mode_checkbox->set_callback([this](bool checked) {
-		selected_widget = nullptr; // deselect current widget focus
+        selected_widget = nullptr; // deselect current widget focus
         TestModeManager::getInstance()->setTestModeEnabled(checked);
         
         // Force redraw to update all widgets' appearance
@@ -794,8 +796,6 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     // Properties pane
     new Label(editor_win, "Properties", "sans-bold");
     properties_pane = new Widget(editor_win);
-    // properties_pane->set_layout(new GroupLayout());
-    // UPDATED: Use GridLayout instead of GroupLayout for better alignment
     GridLayout* layout = new GridLayout(Orientation::Horizontal, 2, 
                                        Alignment::Middle, 15, 5);
     layout->set_col_alignment({ Alignment::Maximum, Alignment::Fill });
@@ -821,11 +821,13 @@ bool GUIEditor::update_properties() {
 
     if (!selected_widget) {
         new Label(properties_pane, "No widget selected");
+        perform_layout();
+        redraw();
         return false;
     }
 
     /* WIDGET TYPE DISPLAY */
-    new Label(properties_pane, "Widget Type:", "sans-bold");
+    new Label(properties_pane, "Widget:", "sans-bold");
     TextBox *type_box = new TextBox(properties_pane);
     type_box->set_value(getWidgetTypeName(selected_widget));
     type_box->set_editable(false);
@@ -836,14 +838,113 @@ bool GUIEditor::update_properties() {
     TextBox *id_box = new TextBox(properties_pane);
     id_box->set_value(selected_widget->id());
     id_box->set_callback([this](const std::string &v) {
+		if(!selected_widget) return false;
         selected_widget->set_id(v);
+        perform_layout();
+        redraw();
         return true;
     });
     id_box->set_fixed_height(20);
 
+    /* TYPE-SPECIFIC TEXT PROPERTIES */
+    if (Label *lbl = dynamic_cast<Label *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(lbl->caption());
+        caption_box->set_callback([this, lbl](const std::string &v) {
+			if(!selected_widget) return false;
+            lbl->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(btn->caption());
+        caption_box->set_callback([this, btn](const std::string &v) {
+			if(!selected_widget) return false;
+            btn->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (CheckBox *cb = dynamic_cast<CheckBox *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(cb->caption());
+        caption_box->set_callback([this, cb](const std::string &v) {
+			if(!selected_widget) return false;
+            cb->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (Window *win = dynamic_cast<Window *>(selected_widget)) {
+        new Label(properties_pane, "Title:", "sans-bold");
+        TextBox *title_box = new TextBox(properties_pane);
+        title_box->set_value(win->title());
+        title_box->set_callback([this, win](const std::string &v) {
+			if(!selected_widget) return false;
+            win->set_title(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        title_box->set_fixed_height(20);
+    } else if (TextBox *tb = dynamic_cast<TextBox *>(selected_widget)) {
+        new Label(properties_pane, "Value:", "sans-bold");
+        TextBox *value_box = new TextBox(properties_pane);
+        value_box->set_value(tb->value());
+        value_box->set_callback([this, tb](const std::string &v) {
+			if(!selected_widget) return false;
+            tb->set_value(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        value_box->set_fixed_height(20);
+    } else if (ComboBox *cb = dynamic_cast<ComboBox *>(selected_widget)) {
+        new Label(properties_pane, "Items:", "sans-bold");
+        TextArea *items_area = new TextArea(properties_pane);
+        std::string items_str;
+        for (const auto &item : cb->items()) {
+            items_str += item + "\n";
+        }
+        items_area->clear();
+        items_area->append(items_str);
+		// TODO: TextArea doesn't have a callback - should add one when user hits enter?
+		/*
+        items_area->set_callback([this, cb](const std::string &v) {
+            std::vector<std::string> new_items;
+            std::stringstream ss(v);
+            std::string item;
+            while (std::getline(ss, item)) {
+                if (!item.empty()) {
+                    new_items.push_back(item);
+                }
+            }
+            cb->set_items(new_items);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+		*/
+        items_area->set_fixed_size(Vector2i(0, 60)); // Fixed height for TextArea
+    }
+
     /* LAYOUT CONTROLS - Only for container widgets */
     if (canHaveLayout(selected_widget)) {
-        new Label(properties_pane, "Layout Type:", "sans-bold");
+        new Label(properties_pane, "Layout:", "sans-bold");
         ComboBox *layout_combo = new ComboBox(properties_pane, {
             "None", "Box Layout", "Grid Layout", "Advanced Grid", "Flex Layout", "Group Layout"
         });
@@ -854,8 +955,7 @@ bool GUIEditor::update_properties() {
         
         layout_combo->set_callback([this](int index) {
             applyLayoutType(selected_widget, index);
-			// WARNING: Recursive call?
-            //update_properties(); // Refresh to show layout-specific controls
+            update_properties(); // Refresh to show layout-specific controls
         });
         layout_combo->set_fixed_height(20);
 
@@ -871,6 +971,9 @@ bool GUIEditor::update_properties() {
         Vector2i pos = selected_widget->position();
         pos.x() = v;
         selected_widget->set_position(pos);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
         return true;
     });
     pos_x->set_fixed_height(20);
@@ -883,6 +986,9 @@ bool GUIEditor::update_properties() {
         Vector2i pos = selected_widget->position();
         pos.y() = v;
         selected_widget->set_position(pos);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
         return true;
     });
     pos_y->set_fixed_height(20);
@@ -896,6 +1002,8 @@ bool GUIEditor::update_properties() {
         size.x() = v;
         selected_widget->set_fixed_size(size);
         selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
         return true;
     });
     width_box->set_fixed_height(20);
@@ -909,6 +1017,8 @@ bool GUIEditor::update_properties() {
         size.y() = v;
         selected_widget->set_fixed_size(size);
         selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
         return true;
     });
     height_box->set_fixed_height(20);
@@ -917,243 +1027,288 @@ bool GUIEditor::update_properties() {
     new Label(properties_pane, "BG Color:", "sans-bold");
     ColorPicker *bg_color = new ColorPicker(properties_pane);
     bg_color->set_callback([this](const Color &c) {
-        //printf("FIXME: Set background if applicable...\n");
-		return;
+        // Not all widgets support background color; placeholder for future implementation
+        (void)c;
+        perform_layout();
+        redraw();
+        return true;
     });
+    bg_color->set_fixed_height(20);
 
-    // TYPE-SPECIFIC PROPERTIES (existing code...)
-	// FIXME: incomplete
-    //addTypeSpecificProperties(selected_widget);
-
-    this->screen()->perform_layout();
-	this->screen()->redraw();
-
-	return false;
+    perform_layout();
+    redraw();
+    return true;
 }
 
 bool GUIEditor::canHaveLayout(Widget* widget) {
-	return dynamic_cast<Window*>(widget) || 
-		   dynamic_cast<TestWindow*>(widget) ||
-		   dynamic_cast<TestWidget*>(widget) ||
-		   (widget != canvas_win && widget->child_count() > 0);
+    return dynamic_cast<Window*>(widget) || 
+           dynamic_cast<TestWindow*>(widget) ||
+           dynamic_cast<TestWidget*>(widget) ||
+           (widget != canvas_win && widget->child_count() > 0);
 }
 
 std::string GUIEditor::getCurrentLayoutType(Widget* widget) {
-	Layout* layout = widget->layout();
-	if (!layout) return "None";
-	
-	if (dynamic_cast<BoxLayout*>(layout)) return "Box Layout";
-	if (dynamic_cast<GridLayout*>(layout)) return "Grid Layout";
-	if (dynamic_cast<AdvancedGridLayout*>(layout)) return "Advanced Grid";
-	if (dynamic_cast<FlexLayout*>(layout)) return "Flex Layout";
-	if (dynamic_cast<GroupLayout*>(layout)) return "Group Layout";
-	
-	return "Unknown";
+    Layout* layout = widget->layout();
+    if (!layout) return "None";
+    
+    if (dynamic_cast<BoxLayout*>(layout)) return "Box Layout";
+    if (dynamic_cast<GridLayout*>(layout)) return "Grid Layout";
+    if (dynamic_cast<AdvancedGridLayout*>(layout)) return "Advanced Grid";
+    if (dynamic_cast<FlexLayout*>(layout)) return "Flex Layout";
+    if (dynamic_cast<GroupLayout*>(layout)) return "Group Layout";
+    
+    return "Unknown";
 }
 
 int GUIEditor::getLayoutTypeIndex(const std::string& type) {
-	if (type == "None") return 0;
-	if (type == "Box Layout") return 1;
-	if (type == "Grid Layout") return 2;
-	if (type == "Advanced Grid") return 3;
-	if (type == "Flex Layout") return 4;
-	if (type == "Group Layout") return 5;
-	return 0;
+    if (type == "None") return 0;
+    if (type == "Box Layout") return 1;
+    if (type == "Grid Layout") return 2;
+    if (type == "Advanced Grid") return 3;
+    if (type == "Flex Layout") return 4;
+    if (type == "Group Layout") return 5;
+    return 0;
 }
 
 void GUIEditor::applyLayoutType(Widget* widget, int type_index) {
-	Layout* new_layout = nullptr;
-	
-	switch (type_index) {
-		case 0: // None
-			new_layout = nullptr;
-			break;
-		case 1: // Box Layout
-			new_layout = new BoxLayout(Orientation::Vertical, Alignment::Fill, 10, 5);
-			break;
-		case 2: // Grid Layout
-			new_layout = new GridLayout(Orientation::Horizontal, 2, Alignment::Fill, 10, 5);
-			break;
-		case 3: // Advanced Grid
-			new_layout = new AdvancedGridLayout({100, 100}, {30, 30}, 10);
-			break;
-		case 4: // Flex Layout
-			new_layout = new FlexLayout(FlexDirection::Column, JustifyContent::FlexStart, 
-									  AlignItems::Stretch, 10, 5);
-			break;
-		case 5: // Group Layout
-			new_layout = new GroupLayout(10, 5, 15, 5);
-			break;
-	}
-	
-	widget->set_layout(new_layout);
-	widget->perform_layout(m_nvg_context);
-	m_redraw = true;
-    this->screen()->perform_layout();
-	this->screen()->redraw();
-	printf("applyLayoutType\n");
+    Layout* new_layout = nullptr;
+    
+    switch (type_index) {
+        case 0: // None
+            new_layout = nullptr;
+            break;
+        case 1: // Box Layout
+            new_layout = new BoxLayout(Orientation::Vertical, Alignment::Fill, 10, 5);
+            break;
+        case 2: // Grid Layout
+            new_layout = new GridLayout(Orientation::Horizontal, 2, Alignment::Fill, 10, 5);
+            break;
+        case 3: // Advanced Grid
+            new_layout = new AdvancedGridLayout({100, 100}, {30, 30}, 10);
+            break;
+        case 4: // Flex Layout
+            new_layout = new FlexLayout(FlexDirection::Column, JustifyContent::FlexStart, 
+                                      AlignItems::Stretch, 10, 5);
+            break;
+        case 5: // Group Layout
+            new_layout = new GroupLayout(10, 5, 15, 5);
+            break;
+    }
+    
+    widget->set_layout(new_layout);
+    widget->perform_layout(m_nvg_context);
+    // Ensure parent widgets update their layout
+    if (Widget* parent = widget->parent()) {
+        parent->perform_layout(m_nvg_context);
+    }
+    perform_layout();
+    redraw();
 }
 
 void GUIEditor::addLayoutSpecificControls(Widget* widget) {
-	Layout* layout = widget->layout();
-	if (!layout) return;
+    Layout* layout = widget->layout();
+    if (!layout) return;
 
-	// Box Layout Controls
-	if (BoxLayout* box_layout = dynamic_cast<BoxLayout*>(layout)) {
-		addBoxLayoutControls(box_layout);
-	}
-	// Grid Layout Controls  
-	else if (GridLayout* grid_layout = dynamic_cast<GridLayout*>(layout)) {
-		addGridLayoutControls(grid_layout);
-	}
-	// Flex Layout Controls
-	else if (FlexLayout* flex_layout = dynamic_cast<FlexLayout*>(layout)) {
-		addFlexLayoutControls(flex_layout);
-	}
-	// Group Layout Controls
-	else if (GroupLayout* group_layout = dynamic_cast<GroupLayout*>(layout)) {
-		addGroupLayoutControls(group_layout);
-	}
+    // Box Layout Controls
+    if (BoxLayout* box_layout = dynamic_cast<BoxLayout*>(layout)) {
+        addBoxLayoutControls(box_layout);
+    }
+    // Grid Layout Controls  
+    else if (GridLayout* grid_layout = dynamic_cast<GridLayout*>(layout)) {
+        addGridLayoutControls(grid_layout);
+    }
+    // Flex Layout Controls
+    else if (FlexLayout* flex_layout = dynamic_cast<FlexLayout*>(layout)) {
+        addFlexLayoutControls(flex_layout);
+    }
+    // Group Layout Controls
+    else if (GroupLayout* group_layout = dynamic_cast<GroupLayout*>(layout)) {
+        addGroupLayoutControls(group_layout);
+    }
 }
 
 void GUIEditor::addBoxLayoutControls(BoxLayout* layout) {
-	// Orientation
-	new Label(properties_pane, "Orientation:", "sans-bold");
-	ComboBox *orientation_combo = new ComboBox(properties_pane, {"Horizontal", "Vertical"});
-	orientation_combo->set_selected_index(layout->orientation() == Orientation::Horizontal ? 0 : 1);
-	orientation_combo->set_callback([this, layout](int index) {
-		layout->set_orientation(index == 0 ? Orientation::Horizontal : Orientation::Vertical);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-	});
-	orientation_combo->set_fixed_height(20);
+    // Orientation
+    new Label(properties_pane, "Orientation:", "sans-bold");
+    ComboBox *orientation_combo = new ComboBox(properties_pane, {"Horizontal", "Vertical"});
+    orientation_combo->set_selected_index(layout->orientation() == Orientation::Horizontal ? 0 : 1);
+    orientation_combo->set_callback([this, layout](int index) {
+        layout->set_orientation(index == 0 ? Orientation::Horizontal : Orientation::Vertical);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+    });
+    orientation_combo->set_fixed_height(20);
 
-	// Alignment
-	new Label(properties_pane, "Alignment:", "sans-bold");
-	ComboBox *align_combo = new ComboBox(properties_pane, {"Minimum", "Middle", "Maximum", "Fill"});
-	align_combo->set_selected_index((int)layout->alignment());
-	align_combo->set_callback([this, layout](int index) {
-		layout->set_alignment((Alignment)index);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-	});
-	align_combo->set_fixed_height(20);
+    // Alignment
+    new Label(properties_pane, "Alignment:", "sans-bold");
+    ComboBox *align_combo = new ComboBox(properties_pane, {"Minimum", "Middle", "Maximum", "Fill"});
+    align_combo->set_selected_index((int)layout->alignment());
+    align_combo->set_callback([this, layout](int index) {
+        layout->set_alignment((Alignment)index);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+    });
+    align_combo->set_fixed_height(20);
 
-	// Margin
-	new Label(properties_pane, "Margin:", "sans-bold");
-	IntBox<int> *margin_box = new IntBox<int>(properties_pane);
-	margin_box->set_value(layout->margin());
-	margin_box->set_callback([this, layout](int v) {
-		layout->set_margin(v);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-		return true;
-	});
-	margin_box->set_fixed_height(20);
+    // Margin
+    new Label(properties_pane, "Margin:", "sans-bold");
+    IntBox<int> *margin_box = new IntBox<int>(properties_pane);
+    margin_box->set_value(layout->margin());
+    margin_box->set_callback([this, layout](int v) {
+        layout->set_margin(v);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+        return true;
+    });
+    margin_box->set_fixed_height(20);
 
-	// Spacing
-	new Label(properties_pane, "Spacing:", "sans-bold");
-	IntBox<int> *spacing_box = new IntBox<int>(properties_pane);
-	spacing_box->set_value(layout->spacing());
-	spacing_box->set_callback([this, layout](int v) {
-		layout->set_spacing(v);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-		return true;
-	});
-	spacing_box->set_fixed_height(20);
+    // Spacing
+    new Label(properties_pane, "Spacing:", "sans-bold");
+    IntBox<int> *spacing_box = new IntBox<int>(properties_pane);
+    spacing_box->set_value(layout->spacing());
+    spacing_box->set_callback([this, layout](int v) {
+        layout->set_spacing(v);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+        return true;
+    });
+    spacing_box->set_fixed_height(20);
 }
 
 void GUIEditor::addGridLayoutControls(GridLayout* layout) {
-	// Resolution (columns/rows)
-	new Label(properties_pane, "Resolution:", "sans-bold");
-	IntBox<int> *resolution_box = new IntBox<int>(properties_pane);
-	resolution_box->set_value(layout->resolution());
-	resolution_box->set_callback([this, layout](int v) {
-		layout->set_resolution(std::max(1, v));
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-		return true;
-	});
-	resolution_box->set_fixed_height(20);
+    // Resolution (columns/rows)
+    new Label(properties_pane, "Resolution:", "sans-bold");
+    IntBox<int> *resolution_box = new IntBox<int>(properties_pane);
+    resolution_box->set_value(layout->resolution());
+    resolution_box->set_callback([this, layout](int v) {
+        layout->set_resolution(std::max(1, v));
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+        return true;
+    });
+    resolution_box->set_fixed_height(20);
 
-	// Orientation  
-	new Label(properties_pane, "Orientation:", "sans-bold");
-	ComboBox *orientation_combo = new ComboBox(properties_pane, {"Horizontal", "Vertical"});
-	orientation_combo->set_selected_index(layout->orientation() == Orientation::Horizontal ? 0 : 1);
-	orientation_combo->set_callback([this, layout](int index) {
-		layout->set_orientation(index == 0 ? Orientation::Horizontal : Orientation::Vertical);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-	});
-	orientation_combo->set_fixed_height(20);
+    // Orientation  
+    new Label(properties_pane, "Orientation:", "sans-bold");
+    ComboBox *orientation_combo = new ComboBox(properties_pane, {"Horizontal", "Vertical"});
+    orientation_combo->set_selected_index(layout->orientation() == Orientation::Horizontal ? 0 : 1);
+    orientation_combo->set_callback([this, layout](int index) {
+        layout->set_orientation(index == 0 ? Orientation::Horizontal : Orientation::Vertical);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+    });
+    orientation_combo->set_fixed_height(20);
 }
 
 void GUIEditor::addFlexLayoutControls(FlexLayout* layout) {
-	// Flex Direction
-	new Label(properties_pane, "Direction:", "sans-bold");
-	ComboBox *direction_combo = new ComboBox(properties_pane, {
-		"Row", "Row Reverse", "Column", "Column Reverse"
-	});
-	direction_combo->set_selected_index((int)layout->direction());
-	direction_combo->set_callback([this, layout](int index) {
-		layout->set_direction((FlexDirection)index);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-	});
-	direction_combo->set_fixed_height(20);
+    // Flex Direction
+    new Label(properties_pane, "Direction:", "sans-bold");
+    ComboBox *direction_combo = new ComboBox(properties_pane, {
+        "Row", "Row Reverse", "Column", "Column Reverse"
+    });
+    direction_combo->set_selected_index((int)layout->direction());
+    direction_combo->set_callback([this, layout](int index) {
+        layout->set_direction((FlexDirection)index);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+    });
+    direction_combo->set_fixed_height(20);
 
-	// Justify Content
-	new Label(properties_pane, "Justify:", "sans-bold");
-	ComboBox *justify_combo = new ComboBox(properties_pane, {
-		"Flex Start", "Flex End", "Center", "Space Between", "Space Around", "Space Evenly"
-	});
-	justify_combo->set_selected_index((int)layout->justify_content());
-	justify_combo->set_callback([this, layout](int index) {
-		layout->set_justify_content((JustifyContent)index);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-	});
-	justify_combo->set_fixed_height(20);
+    // Justify Content
+    new Label(properties_pane, "Justify:", "sans-bold");
+    ComboBox *justify_combo = new ComboBox(properties_pane, {
+        "Flex Start", "Flex End", "Center", "Space Between", "Space Around", "Space Evenly"
+    });
+    justify_combo->set_selected_index((int)layout->justify_content());
+    justify_combo->set_callback([this, layout](int index) {
+        layout->set_justify_content((JustifyContent)index);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+    });
+    justify_combo->set_fixed_height(20);
 
-	// Align Items
-	new Label(properties_pane, "Align Items:", "sans-bold");
-	ComboBox *align_combo = new ComboBox(properties_pane, {
-		"Flex Start", "Flex End", "Center", "Stretch", "Baseline"
-	});
-	align_combo->set_selected_index((int)layout->align_items());
-	align_combo->set_callback([this, layout](int index) {
-		layout->set_align_items((AlignItems)index);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-	});
-	align_combo->set_fixed_height(20);
+    // Align Items
+    new Label(properties_pane, "Align Items:", "sans-bold");
+    ComboBox *align_combo = new ComboBox(properties_pane, {
+        "Flex Start", "Flex End", "Center", "Stretch", "Baseline"
+    });
+    align_combo->set_selected_index((int)layout->align_items());
+    align_combo->set_callback([this, layout](int index) {
+        layout->set_align_items((AlignItems)index);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+    });
+    align_combo->set_fixed_height(20);
 }
 
 void GUIEditor::addGroupLayoutControls(GroupLayout* layout) {
-	// Margin
-	new Label(properties_pane, "Margin:", "sans-bold");
-	IntBox<int> *margin_box = new IntBox<int>(properties_pane);
-	margin_box->set_value(layout->margin());
-	margin_box->set_callback([this, layout](int v) {
-		layout->set_margin(v);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-		return true;
-	});
-	margin_box->set_fixed_height(20);
+    // Margin
+    new Label(properties_pane, "Margin:", "sans-bold");
+    IntBox<int> *margin_box = new IntBox<int>(properties_pane);
+    margin_box->set_value(layout->margin());
+    margin_box->set_callback([this, layout](int v) {
+        layout->set_margin(v);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+        return true;
+    });
+    margin_box->set_fixed_height(20);
 
-	// Spacing
-	new Label(properties_pane, "Spacing:", "sans-bold");
-	IntBox<int> *spacing_box = new IntBox<int>(properties_pane);
-	spacing_box->set_value(layout->spacing());
-	spacing_box->set_callback([this, layout](int v) {
-		layout->set_spacing(v);
-		selected_widget->perform_layout(m_nvg_context);
-		m_redraw = true;
-		return true;
-	});
-	spacing_box->set_fixed_height(20);
+    // Spacing
+    new Label(properties_pane, "Spacing:", "sans-bold");
+    IntBox<int> *spacing_box = new IntBox<int>(properties_pane);
+    spacing_box->set_value(layout->spacing());
+    spacing_box->set_callback([this, layout](int v) {
+        layout->set_spacing(v);
+        selected_widget->perform_layout(m_nvg_context);
+        if (Widget* parent = selected_widget->parent()) {
+            parent->perform_layout(m_nvg_context);
+        }
+        perform_layout();
+        redraw();
+        return true;
+    });
+    spacing_box->set_fixed_height(20);
 }
 
 std::string GUIEditor::getWidgetTypeName(Widget *widget) {
@@ -1188,13 +1343,11 @@ std::string GUIEditor::generateUniqueId(int icon) {
 bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
     m_redraw = true; // force redraw on all mouse events
 
-	if (Screen::mouse_button_event(p, button, down, modifiers)) {
+    if (Screen::mouse_button_event(p, button, down, modifiers)) {
         return true;
     }
 
-    if (!TestModeManager::getInstance()->isTestModeEnabled() &&
-				button == GLFW_MOUSE_BUTTON_1) 
-	{
+    if (!TestModeManager::getInstance()->isTestModeEnabled() && button == GLFW_MOUSE_BUTTON_1) {
         Vector2i canvas_pos = p - canvas_win->position();
         if (canvas_win->contains(p)) { // Contains checks constraints
             if (down) {
@@ -1307,6 +1460,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                         selected_widget = new_w;
                         update_properties();
                         perform_layout();
+                        redraw();
                         return true;
                     }
                 }
