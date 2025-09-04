@@ -17,6 +17,7 @@
 #include <nanogui/imagepanel.h>
 #include <nanogui/folderdialog.h>
 #include <nanogui/textarea.h>
+#include <nanogui/menu.h>
 
 #include <iostream>
 #include <memory>
@@ -321,6 +322,82 @@ public:
                 nvgFontFace(ctx, "sans");
                 nvgFillColor(ctx, Color(255, 0, 0, 255));
                 nvgText(ctx, m_pos.x() + 5, m_pos.y() + 15, "EDIT MODE OFF", nullptr);
+            }
+            nvgRestore(ctx);
+        }
+    }
+};
+
+class TestDropdown : public Dropdown {
+public:
+    TestDropdown(Widget *parent, const std::vector<std::string> &items = {})
+        : Dropdown(parent, Dropdown::ComboBox, "Dropdown") {
+    }
+
+    virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Dropdown::mouse_button_event(p, button, down, modifiers);
+    }
+
+    virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Dropdown::mouse_motion_event(p, rel, button, modifiers);
+    }
+
+    virtual bool scroll_event(const Vector2i &p, const Vector2f &rel) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Dropdown::scroll_event(p, rel);
+    }
+
+    virtual bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Dropdown::mouse_drag_event(p, rel, button, modifiers);
+    }
+
+    virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Dropdown::keyboard_event(key, scancode, action, modifiers);
+    }
+
+    virtual bool keyboard_character_event(unsigned int codepoint) override {
+        if (!TestModeManager::getInstance()->isTestModeEnabled()) {
+            return false;
+        }
+        return Dropdown::keyboard_character_event(codepoint);
+    }
+
+    virtual void draw(NVGcontext *ctx) override {
+        Dropdown::draw(ctx);
+
+        GUIEditor* editor = dynamic_cast<GUIEditor*>(screen());
+        Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
+
+        // Draw borders when selected or test mode is OFF
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgStrokeColor(ctx, border);
+            nvgStrokeWidth(ctx, (editor && editor->selected_widget == this) ? 2.0f : 1.5f);
+            nvgStroke(ctx);
+
+            // Draw inner red border only when not selected and test mode is OFF
+            if (!(editor && editor->selected_widget == this) && !TestModeManager::getInstance()->isTestModeEnabled()) {
+                nvgBeginPath(ctx);
+                nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+                nvgStrokeColor(ctx, Color(255, 0, 0, 255));
+                nvgStrokeWidth(ctx, 1.0f);
+                nvgStroke(ctx);
             }
             nvgRestore(ctx);
         }
@@ -811,234 +888,6 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     perform_layout();
 }
 
-#if 0
-bool GUIEditor::update_properties() {
-    // Clear existing properties
-    while (properties_pane->child_count() > 0) {
-        properties_pane->remove_child(properties_pane->child_at(properties_pane->child_count() - 1));
-    }
-
-    if (!selected_widget) {
-        new Label(properties_pane, "No widget selected");
-        perform_layout();
-        redraw();
-        return false;
-    }
-
-    /* WIDGET TYPE DISPLAY */
-    new Label(properties_pane, "Widget:", "sans-bold");
-    TextBox *type_box = new TextBox(properties_pane);
-    type_box->set_value(getWidgetTypeName(selected_widget));
-    type_box->set_editable(false);
-    type_box->set_fixed_height(20);
-
-    /* UNIQUE ID DISPLAY */
-    new Label(properties_pane, "ID:", "sans-bold");
-    TextBox *id_box = new TextBox(properties_pane);
-    id_box->set_value(selected_widget->id());
-    id_box->set_callback([this](const std::string &v) {
-		if(!selected_widget) return false;
-        selected_widget->set_id(v);
-        perform_layout();
-        redraw();
-        return true;
-    });
-    id_box->set_fixed_height(20);
-
-    /* TYPE-SPECIFIC TEXT PROPERTIES */
-    if (Label *lbl = dynamic_cast<Label *>(selected_widget)) {
-        new Label(properties_pane, "Caption:", "sans-bold");
-        TextBox *caption_box = new TextBox(properties_pane);
-        caption_box->set_value(lbl->caption());
-        caption_box->set_callback([this, lbl](const std::string &v) {
-			if(!selected_widget) return false;
-            lbl->set_caption(v);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-        caption_box->set_fixed_height(20);
-    } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
-        new Label(properties_pane, "Caption:", "sans-bold");
-        TextBox *caption_box = new TextBox(properties_pane);
-        caption_box->set_value(btn->caption());
-        caption_box->set_callback([this, btn](const std::string &v) {
-			if(!selected_widget) return false;
-            btn->set_caption(v);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-        caption_box->set_fixed_height(20);
-    } else if (CheckBox *cb = dynamic_cast<CheckBox *>(selected_widget)) {
-        new Label(properties_pane, "Caption:", "sans-bold");
-        TextBox *caption_box = new TextBox(properties_pane);
-        caption_box->set_value(cb->caption());
-        caption_box->set_callback([this, cb](const std::string &v) {
-			if(!selected_widget) return false;
-            cb->set_caption(v);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-        caption_box->set_fixed_height(20);
-    } else if (Window *win = dynamic_cast<Window *>(selected_widget)) {
-        new Label(properties_pane, "Title:", "sans-bold");
-        TextBox *title_box = new TextBox(properties_pane);
-        title_box->set_value(win->title());
-        title_box->set_callback([this, win](const std::string &v) {
-			if(!selected_widget) return false;
-            win->set_title(v);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-        title_box->set_fixed_height(20);
-    } else if (TextBox *tb = dynamic_cast<TextBox *>(selected_widget)) {
-        new Label(properties_pane, "Value:", "sans-bold");
-        TextBox *value_box = new TextBox(properties_pane);
-        value_box->set_value(tb->value());
-        value_box->set_callback([this, tb](const std::string &v) {
-			if(!selected_widget) return false;
-            tb->set_value(v);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-        value_box->set_fixed_height(20);
-    } else if (ComboBox *cb = dynamic_cast<ComboBox *>(selected_widget)) {
-        new Label(properties_pane, "Items:", "sans-bold");
-        TextArea *items_area = new TextArea(properties_pane);
-        std::string items_str;
-        for (const auto &item : cb->items()) {
-            items_str += item + "\n";
-        }
-        items_area->clear();
-        items_area->append(items_str);
-		// TODO: TextArea doesn't have a callback - should add one when user hits enter?
-		/*
-        items_area->set_callback([this, cb](const std::string &v) {
-            std::vector<std::string> new_items;
-            std::stringstream ss(v);
-            std::string item;
-            while (std::getline(ss, item)) {
-                if (!item.empty()) {
-                    new_items.push_back(item);
-                }
-            }
-            cb->set_items(new_items);
-            selected_widget->perform_layout(m_nvg_context);
-            perform_layout();
-            redraw();
-            return true;
-        });
-		*/
-        items_area->set_fixed_size(Vector2i(0, 60)); // Fixed height for TextArea
-    }
-
-    /* LAYOUT CONTROLS - Only for container widgets */
-    if (canHaveLayout(selected_widget)) {
-        new Label(properties_pane, "Layout:", "sans-bold");
-        ComboBox *layout_combo = new ComboBox(properties_pane, {
-            "None", "Box Layout", "Grid Layout", "Advanced Grid", "Flex Layout", "Group Layout"
-        });
-        
-        // Set current layout type
-        std::string current_layout = getCurrentLayoutType(selected_widget);
-        layout_combo->set_selected_index(getLayoutTypeIndex(current_layout));
-        
-        layout_combo->set_callback([this](int index) {
-            applyLayoutType(selected_widget, index);
-            update_properties(); // Refresh to show layout-specific controls
-        });
-        layout_combo->set_fixed_height(20);
-
-        // Layout-specific parameters
-        addLayoutSpecificControls(selected_widget);
-    }
-
-    /* POSITION X */
-    new Label(properties_pane, "Position X:", "sans-bold");
-    IntBox<int> *pos_x = new IntBox<int>(properties_pane);
-    pos_x->set_value(selected_widget->position().x());
-    pos_x->set_callback([this](int v) {
-        Vector2i pos = selected_widget->position();
-        pos.x() = v;
-        selected_widget->set_position(pos);
-        selected_widget->perform_layout(m_nvg_context);
-        perform_layout();
-        redraw();
-        return true;
-    });
-    pos_x->set_fixed_height(20);
-
-    /* POSITION Y */
-    new Label(properties_pane, "Position Y:", "sans-bold");
-    IntBox<int> *pos_y = new IntBox<int>(properties_pane);
-    pos_y->set_value(selected_widget->position().y());
-    pos_y->set_callback([this](int v) {
-        Vector2i pos = selected_widget->position();
-        pos.y() = v;
-        selected_widget->set_position(pos);
-        selected_widget->perform_layout(m_nvg_context);
-        perform_layout();
-        redraw();
-        return true;
-    });
-    pos_y->set_fixed_height(20);
-
-    /* WIDTH */
-    new Label(properties_pane, "Width:", "sans-bold");
-    IntBox<int> *width_box = new IntBox<int>(properties_pane);
-    width_box->set_value(selected_widget->width());
-    width_box->set_callback([this](int v) {
-        Vector2i size = selected_widget->size();
-        size.x() = v;
-        selected_widget->set_fixed_size(size);
-        selected_widget->perform_layout(m_nvg_context);
-        perform_layout();
-        redraw();
-        return true;
-    });
-    width_box->set_fixed_height(20);
-
-    /* HEIGHT */
-    new Label(properties_pane, "Height:", "sans-bold");
-    IntBox<int> *height_box = new IntBox<int>(properties_pane);
-    height_box->set_value(selected_widget->height());
-    height_box->set_callback([this](int v) {
-        Vector2i size = selected_widget->size();
-        size.y() = v;
-        selected_widget->set_fixed_size(size);
-        selected_widget->perform_layout(m_nvg_context);
-        perform_layout();
-        redraw();
-        return true;
-    });
-    height_box->set_fixed_height(20);
-
-    /* BACKGROUND COLOR */
-    new Label(properties_pane, "BG Color:", "sans-bold");
-    ColorPicker *bg_color = new ColorPicker(properties_pane);
-    bg_color->set_callback([this](const Color &c) {
-        // Not all widgets support background color; placeholder for future implementation
-        (void)c;
-        perform_layout();
-        redraw();
-        return true;
-    });
-    bg_color->set_fixed_height(20);
-
-    perform_layout();
-    redraw();
-    return true;
-}
-#endif //0
 
 bool GUIEditor::update_properties() {
     // Clear existing properties
@@ -1157,7 +1006,19 @@ bool GUIEditor::update_properties() {
         items_area->clear();
         items_area->append(items_str);
         items_area->set_fixed_size(Vector2i(0, 60));
-    }
+    } else if (Dropdown *dropdown = dynamic_cast<Dropdown *>(selected_widget)) {
+		new Label(properties_pane, "Items:", "sans-bold");
+		TextArea *items_area = new TextArea(properties_pane);
+		std::string items_str;
+		for (int i = 0; i < dropdown->popup()->child_count(); ++i) {
+			if (auto item = dropdown->popup()->item(i)) {
+				items_str += item->caption() + "\n";
+			}
+		}
+		items_area->clear();
+		items_area->append(items_str);
+		items_area->set_fixed_size(Vector2i(0, 60));
+	} 
 
     /* LAYOUT CONTROLS - Only for container widgets */
     if (canHaveLayout(selected_widget)) {
@@ -1538,7 +1399,8 @@ std::string GUIEditor::getWidgetTypeName(Widget *widget) {
     if (dynamic_cast<TestLabel *>(widget)) return "Label";
     if (dynamic_cast<TestButton *>(widget)) return "Button";
     if (dynamic_cast<TestTextBox *>(widget)) return "Text Box";
-    if (dynamic_cast<TestComboBox *>(widget)) return "Dropdown";
+    if (dynamic_cast<TestComboBox *>(widget)) return "ComboBox";
+    if (dynamic_cast<TestDropdown *>(widget)) return "Dropdown";
     if (dynamic_cast<TestCheckBox *>(widget)) return "Checkbox";
     if (dynamic_cast<TestSlider *>(widget)) return "Slider";
     if (dynamic_cast<TestColorPicker *>(widget)) return "Color Picker";
@@ -1552,7 +1414,7 @@ std::string GUIEditor::generateUniqueId(int icon) {
         case FA_TAG: return "LABEL" + std::to_string(++label_count);
         case FA_HAND_POINT_UP: return "BUTTON" + std::to_string(++button_count);
         case FA_KEYBOARD: return "TEXTBOX" + std::to_string(++textbox_count);
-        case FA_CARET_DOWN: return "COMBOBOX" + std::to_string(++combobox_count);
+        case FA_CARET_DOWN: return "DROPDOWN" + std::to_string(++dropdown_count);
         case FA_CHECK_SQUARE: return "CHECKBOX" + std::to_string(++checkbox_count);
         case FA_SLIDERS_H: return "SLIDER" + std::to_string(++slider_count);
         case FA_PALETTE: return "COLORPICKER" + std::to_string(++colorpicker_count);
@@ -1655,6 +1517,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                     new_w->set_id(generateUniqueId(current_tool));
                 }
                 break;
+				/*
                 case FA_CARET_DOWN: {
                     TestComboBox *cb = new TestComboBox(target_container, {"Item 1", "Item 2"});
                     cb->set_position(relative_pos);
@@ -1663,6 +1526,30 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                     new_w->set_id(generateUniqueId(current_tool));
                 }
                 break;
+				*/
+				case FA_CARET_DOWN: {
+					TestDropdown *dropdown = new TestDropdown(target_container, {"Item 1", "Item 2"});
+					dropdown->set_position(relative_pos);
+					dropdown->set_fixed_size(Vector2i(150, 25));
+					dropdown->set_width(150);
+					dropdown->set_text_color(Color(255, 255, 255, 255));
+					std::vector<std::string> items = {"Item 1", "Item 2"};
+					for (const auto& item : items) {
+						dropdown->add_item(
+							{item, item + "_item"}, 0,
+							[item] { std::cout << "Selected item: " << item << "\n"; },
+							std::vector<Shortcut>{{0, -1}},
+							true
+						);
+					}
+					dropdown->set_selected_callback([dropdown](int idx) {
+						if (auto item = dropdown->popup()->item(idx))
+							std::cout << "Dropdown callback - Selected item: " << item->caption() << "\n";
+					});
+					new_w = dropdown;
+					new_w->set_id(generateUniqueId(current_tool));
+				}
+				break;
                 case FA_CHECK_SQUARE: {
                     TestCheckBox *cb = new TestCheckBox(target_container, "Checkbox");
                     cb->set_position(relative_pos);

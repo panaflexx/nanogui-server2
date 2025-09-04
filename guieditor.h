@@ -29,6 +29,7 @@ namespace nanogui {
     class Label;
     class TextBox;
     class ComboBox;
+    class Dropdown;
     class ColorPicker;
     class TextArea;
 }
@@ -57,6 +58,7 @@ public:
     int button_count = 0;
     int textbox_count = 0;
     int combobox_count = 0;
+    int dropdown_count = 0;
     int checkbox_count = 0;
     int slider_count = 0;
     int colorpicker_count = 0;
