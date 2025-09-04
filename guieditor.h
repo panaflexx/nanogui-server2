@@ -43,7 +43,7 @@ public:
     Widget *selected_widget = nullptr;
     int current_tool = 0;
     bool dragging = false;
-    Vector2i drag_start;
+    Vector2i drag_start, drag_offset;
     Window *canvas_win;
     Window *editor_win;
     Widget *properties_pane;
@@ -51,6 +51,7 @@ public:
 
     /* Counters for unique ID generation */
     int window_count = 0;
+    int pane_count = 0;
     int label_count = 0;
     int button_count = 0;
     int textbox_count = 0;
@@ -75,6 +76,8 @@ public:
     bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override;
 
     bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override;
+
+	bool mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override;
 
     bool keyboard_event(int key, int scancode, int action, int modifiers) override;
 

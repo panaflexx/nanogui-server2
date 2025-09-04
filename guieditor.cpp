@@ -1,10 +1,7 @@
-/*
- guieditor.cpp -- A professional-grade GUI editor using NanoGUI.
+ /* guieditor.cpp -- A professional-grade GUI editor using NanoGUI.
  Based on the provided example application.
 
- NanoGUI was developed by Wenzel Jakob <wenzel.jakob@epfl.ch>.
- The widget drawing code is based on the NanoVG demo application
- by Mikko Mononen.
+ (C) Roger Davenport 2025
 
  All rights reserved. Use of this source code is governed by a
  BSD-style license that can be found in the LICENSE.txt file.
@@ -809,10 +806,12 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     canvas_win->set_position(Vector2i(280, 15));
     canvas_win->set_size(Vector2i(700, 700));
     canvas_win->set_layout(nullptr); // Absolute positioning
+	canvas_win->set_id("CANVAS"); // Set ID for canvas_win
 
     perform_layout();
 }
 
+#if 0
 bool GUIEditor::update_properties() {
     // Clear existing properties
     while (properties_pane->child_count() > 0) {
@@ -1029,6 +1028,227 @@ bool GUIEditor::update_properties() {
     bg_color->set_callback([this](const Color &c) {
         // Not all widgets support background color; placeholder for future implementation
         (void)c;
+        perform_layout();
+        redraw();
+        return true;
+    });
+    bg_color->set_fixed_height(20);
+
+    perform_layout();
+    redraw();
+    return true;
+}
+#endif //0
+
+bool GUIEditor::update_properties() {
+    // Clear existing properties
+    while (properties_pane->child_count() > 0) {
+        properties_pane->remove_child(properties_pane->child_at(properties_pane->child_count() - 1));
+    }
+
+    if (!selected_widget) {
+        new Label(properties_pane, "No widget selected");
+        perform_layout();
+        redraw();
+        return false;
+    }
+
+    /* WIDGET TYPE DISPLAY */
+    new Label(properties_pane, "Widget:", "sans-bold");
+    TextBox *type_box = new TextBox(properties_pane);
+    type_box->set_value(getWidgetTypeName(selected_widget));
+    type_box->set_editable(false);
+    type_box->set_fixed_height(20);
+
+    /* PARENT ID DISPLAY */
+    new Label(properties_pane, "Parent ID:", "sans-bold");
+    TextBox *parent_id_box = new TextBox(properties_pane);
+    Widget *parent = selected_widget->parent();
+    parent_id_box->set_value(parent && parent != this ? parent->id() : "None");
+    parent_id_box->set_editable(false);
+    parent_id_box->set_fixed_height(20);
+
+    /* UNIQUE ID DISPLAY */
+    new Label(properties_pane, "ID:", "sans-bold");
+    TextBox *id_box = new TextBox(properties_pane);
+    id_box->set_value(selected_widget->id());
+    id_box->set_callback([this](const std::string &v) {
+        if (!selected_widget) return false;
+        selected_widget->set_id(v);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    id_box->set_fixed_height(20);
+
+    /* TYPE-SPECIFIC TEXT PROPERTIES */
+    if (Label *lbl = dynamic_cast<Label *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(lbl->caption());
+        caption_box->set_callback([this, lbl](const std::string &v) {
+            if (!selected_widget) return false;
+            lbl->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(btn->caption());
+        caption_box->set_callback([this, btn](const std::string &v) {
+            if (!selected_widget) return false;
+            btn->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (CheckBox *cb = dynamic_cast<CheckBox *>(selected_widget)) {
+        new Label(properties_pane, "Caption:", "sans-bold");
+        TextBox *caption_box = new TextBox(properties_pane);
+        caption_box->set_value(cb->caption());
+        caption_box->set_callback([this, cb](const std::string &v) {
+            if (!selected_widget) return false;
+            cb->set_caption(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        caption_box->set_fixed_height(20);
+    } else if (Window *win = dynamic_cast<Window *>(selected_widget)) {
+        new Label(properties_pane, "Title:", "sans-bold");
+        TextBox *title_box = new TextBox(properties_pane);
+        title_box->set_value(win->title());
+        title_box->set_callback([this, win](const std::string &v) {
+            if (!selected_widget) return false;
+            win->set_title(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        title_box->set_fixed_height(20);
+    } else if (TextBox *tb = dynamic_cast<TextBox *>(selected_widget)) {
+        new Label(properties_pane, "Value:", "sans-bold");
+        TextBox *value_box = new TextBox(properties_pane);
+        value_box->set_value(tb->value());
+        value_box->set_callback([this, tb](const std::string &v) {
+            if (!selected_widget) return false;
+            tb->set_value(v);
+            selected_widget->perform_layout(m_nvg_context);
+            perform_layout();
+            redraw();
+            return true;
+        });
+        value_box->set_fixed_height(20);
+    } else if (ComboBox *cb = dynamic_cast<ComboBox *>(selected_widget)) {
+        new Label(properties_pane, "Items:", "sans-bold");
+        TextArea *items_area = new TextArea(properties_pane);
+        std::string items_str;
+        for (const auto &item : cb->items()) {
+            items_str += item + "\n";
+        }
+        items_area->clear();
+        items_area->append(items_str);
+        items_area->set_fixed_size(Vector2i(0, 60));
+    }
+
+    /* LAYOUT CONTROLS - Only for container widgets */
+    if (canHaveLayout(selected_widget)) {
+        new Label(properties_pane, "Layout:", "sans-bold");
+        ComboBox *layout_combo = new ComboBox(properties_pane, {
+            "None", "Box Layout", "Grid Layout", "Advanced Grid", "Flex Layout", "Group Layout"
+        });
+        
+        std::string current_layout = getCurrentLayoutType(selected_widget);
+        layout_combo->set_selected_index(getLayoutTypeIndex(current_layout));
+        
+        layout_combo->set_callback([this](int index) {
+            if (!selected_widget) return;
+            applyLayoutType(selected_widget, index);
+            update_properties();
+        });
+        layout_combo->set_fixed_height(20);
+
+        addLayoutSpecificControls(selected_widget);
+    }
+
+    /* POSITION X */
+    new Label(properties_pane, "Position X:", "sans-bold");
+    IntBox<int> *pos_x = new IntBox<int>(properties_pane);
+    pos_x->set_value(selected_widget->position().x());
+    pos_x->set_callback([this](int v) {
+        if (!selected_widget) return false;
+        Vector2i pos = selected_widget->position();
+        pos.x() = v;
+        selected_widget->set_position(pos);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    pos_x->set_fixed_height(20);
+
+    /* POSITION Y */
+    new Label(properties_pane, "Position Y:", "sans-bold");
+    IntBox<int> *pos_y = new IntBox<int>(properties_pane);
+    pos_y->set_value(selected_widget->position().y());
+    pos_y->set_callback([this](int v) {
+        if (!selected_widget) return false;
+        Vector2i pos = selected_widget->position();
+        pos.y() = v;
+        selected_widget->set_position(pos);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    pos_y->set_fixed_height(20);
+
+    /* WIDTH */
+    new Label(properties_pane, "Width:", "sans-bold");
+    IntBox<int> *width_box = new IntBox<int>(properties_pane);
+    width_box->set_value(selected_widget->width());
+    width_box->set_callback([this](int v) {
+        if (!selected_widget) return false;
+        Vector2i size = selected_widget->size();
+        size.x() = v;
+        selected_widget->set_fixed_size(size);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    width_box->set_fixed_height(20);
+
+    /* HEIGHT */
+    new Label(properties_pane, "Height:", "sans-bold");
+    IntBox<int> *height_box = new IntBox<int>(properties_pane);
+    height_box->set_value(selected_widget->height());
+    height_box->set_callback([this](int v) {
+        if (!selected_widget) return false;
+        Vector2i size = selected_widget->size();
+        size.y() = v;
+        selected_widget->set_fixed_size(size);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    height_box->set_fixed_height(20);
+
+    /* BACKGROUND COLOR */
+    new Label(properties_pane, "BG Color:", "sans-bold");
+    ColorPicker *bg_color = new ColorPicker(properties_pane);
+    bg_color->set_callback([this](const Color &c) {
+        if (!selected_widget) return false;
+        // Placeholder for background color implementation
         perform_layout();
         redraw();
         return true;
@@ -1312,7 +1532,9 @@ void GUIEditor::addGroupLayoutControls(GroupLayout* layout) {
 }
 
 std::string GUIEditor::getWidgetTypeName(Widget *widget) {
+    if (widget == canvas_win) return "Canvas";
     if (dynamic_cast<TestWindow *>(widget)) return "Window";
+    if (dynamic_cast<TestWidget *>(widget)) return "Pane";
     if (dynamic_cast<TestLabel *>(widget)) return "Label";
     if (dynamic_cast<TestButton *>(widget)) return "Button";
     if (dynamic_cast<TestTextBox *>(widget)) return "Text Box";
@@ -1320,13 +1542,13 @@ std::string GUIEditor::getWidgetTypeName(Widget *widget) {
     if (dynamic_cast<TestCheckBox *>(widget)) return "Checkbox";
     if (dynamic_cast<TestSlider *>(widget)) return "Slider";
     if (dynamic_cast<TestColorPicker *>(widget)) return "Color Picker";
-    if (dynamic_cast<TestWidget *>(widget)) return "Pane";
     return "Widget";
 }
 
 std::string GUIEditor::generateUniqueId(int icon) {
     switch (icon) {
         case FA_WINDOW_MAXIMIZE: return "WINDOW" + std::to_string(++window_count);
+		case FA_TH: return "PANE" + std::to_string(++pane_count);
         case FA_TAG: return "LABEL" + std::to_string(++label_count);
         case FA_HAND_POINT_UP: return "BUTTON" + std::to_string(++button_count);
         case FA_KEYBOARD: return "TEXTBOX" + std::to_string(++textbox_count);
@@ -1341,133 +1563,142 @@ std::string GUIEditor::generateUniqueId(int icon) {
 }
 
 bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
-    m_redraw = true; // force redraw on all mouse events
+    m_redraw = true; // Force redraw on all mouse events
 
     if (Screen::mouse_button_event(p, button, down, modifiers)) {
         return true;
     }
 
-    if (!TestModeManager::getInstance()->isTestModeEnabled() && button == GLFW_MOUSE_BUTTON_1) {
-        Vector2i canvas_pos = p - canvas_win->position();
-        if (canvas_win->contains(p)) { // Contains checks constraints
-            if (down) {
-                // Check for selection or start drag
-                bool hit_widget = false;
-                if (current_tool == FA_MOUSE_POINTER) {
-                    // Find widget in test mode aware manner
-                    Widget *child = canvas_win->find_widget(m_mouse_pos);
-                    if (child) {
-                        printf("Selected widget %s\n", child->id().c_str());
-                        selected_widget = child;
-                        update_properties();
-                        dragging = true;
-                        drag_start = p;
-                        hit_widget = true;
-                    }
+    if (!TestModeManager::getInstance()->isTestModeEnabled() && button == GLFW_MOUSE_BUTTON_1 && down) {
+        // Find the deepest widget at the click position
+        Widget *clicked_widget = find_widget(p);
+        
+        // Find the deepest container widget (TestWindow, TestWidget, or canvas_win) for placing new widgets
+        Widget *target_container = canvas_win;
+        Vector2i relative_pos = p - canvas_win->absolute_position();
+        
+        for (Widget *child : canvas_win->children()) {
+            if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
+                Vector2i child_pos = child->absolute_position();
+                Vector2i child_size = child->size();
+                Vector2i local_p = p - child_pos;
+                if (local_p.x() >= 0 && local_p.y() >= 0 && local_p.x() < child_size.x() && local_p.y() < child_size.y()) {
+                    target_container = child;
+                    relative_pos = local_p;
+                    break;
                 }
-
-                if (!hit_widget && current_tool != FA_MOUSE_POINTER && current_tool != 0) {
-                    // Place new widget using test-aware versions
-                    Widget *new_w = nullptr;
-                    switch (current_tool) {
-                        case FA_WINDOW_MAXIMIZE: {
-                            TestWindow *sub_win = new TestWindow(canvas_win, "New Window");
-                            sub_win->set_position(canvas_pos);
-                            sub_win->set_size(Vector2i(200, 150));
-                            sub_win->set_layout(new GroupLayout());
-                            new_w = sub_win;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_TAG: {
-                            TestLabel *lbl = new TestLabel(canvas_win, "Label");
-                            lbl->set_position(canvas_pos);
-                            lbl->set_fixed_size(Vector2i(100, 20));
-                            new_w = lbl;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_HAND_POINT_UP: {
-                            TestButton *btn = new TestButton(canvas_win, "Button");
-                            btn->set_position(canvas_pos);
-                            btn->set_fixed_size(Vector2i(100, 25));
-                            new_w = btn;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_KEYBOARD: {
-                            TestTextBox *tb = new TestTextBox(canvas_win);
-                            tb->set_position(canvas_pos);
-                            tb->set_fixed_size(Vector2i(150, 25));
-                            tb->set_value("Text");
-                            new_w = tb;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_CARET_DOWN: {
-                            TestComboBox *cb = new TestComboBox(canvas_win, {"Item 1", "Item 2"});
-                            cb->set_position(canvas_pos);
-                            cb->set_fixed_size(Vector2i(150, 25));
-                            new_w = cb;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_CHECK_SQUARE: {
-                            TestCheckBox *cb = new TestCheckBox(canvas_win, "Checkbox");
-                            cb->set_position(canvas_pos);
-                            cb->set_fixed_size(Vector2i(150, 25));
-                            new_w = cb;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_SLIDERS_H: {
-                            TestSlider *sl = new TestSlider(canvas_win);
-                            sl->set_position(canvas_pos);
-                            sl->set_fixed_size(Vector2i(150, 25));
-                            new_w = sl;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        case FA_PALETTE: {
-                            TestColorPicker *cp = new TestColorPicker(canvas_win, Color(255, 0, 0, 255));
-                            cp->set_position(canvas_pos);
-                            cp->set_fixed_size(Vector2i(100, 100));
-                            new_w = cp;
-                            
-                            /* ADDED: SET UNIQUE ID */
-                            new_w->set_id(generateUniqueId(current_tool));
-                        }
-                        break;
-                        // Add more cases for other tools as needed
-                        default:
-                            break;
-                    }
-                    if (new_w) {
-                        selected_widget = new_w;
-                        update_properties();
-                        perform_layout();
-                        redraw();
-                        return true;
-                    }
-                }
-            } else {
-                dragging = false;
             }
         }
+
+        if (current_tool == FA_MOUSE_POINTER) {
+            // Selection logic: Select the deepest widget, or the container if no child is hit
+            if (clicked_widget && clicked_widget->window() != editor_win) {
+                // Select the deepest widget (could be a container or child), excluding editor_win and its children
+                printf("Selected widget %s\n", clicked_widget->id().c_str());
+                selected_widget = clicked_widget;
+                update_properties();
+                dragging = true;
+                drag_start = p;
+                // Store the offset from the widget's top-left corner to the click position
+                drag_offset = p - clicked_widget->absolute_position();
+            } else {
+                // Deselect if clicking on editor_win or outside a valid widget
+                selected_widget = nullptr;
+                update_properties();
+            }
+        } else if (current_tool != 0) {
+            // Place new widget in the target container
+            Widget *new_w = nullptr;
+            switch (current_tool) {
+                case FA_WINDOW_MAXIMIZE: {
+                    TestWindow *sub_win = new TestWindow(target_container, "New Window");
+                    sub_win->set_position(relative_pos);
+                    sub_win->set_size(Vector2i(200, 150));
+                    sub_win->set_layout(new GroupLayout());
+                    new_w = sub_win;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_TH: {
+                    TestWidget *pane = new TestWidget(target_container);
+                    pane->set_position(relative_pos);
+                    pane->set_fixed_size(Vector2i(150, 100));
+                    pane->set_layout(new GroupLayout());
+                    new_w = pane;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_TAG: {
+                    TestLabel *lbl = new TestLabel(target_container, "Label");
+                    lbl->set_position(relative_pos);
+                    lbl->set_fixed_size(Vector2i(100, 20));
+                    new_w = lbl;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_HAND_POINT_UP: {
+                    TestButton *btn = new TestButton(target_container, "Button");
+                    btn->set_position(relative_pos);
+                    btn->set_fixed_size(Vector2i(100, 25));
+                    new_w = btn;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_KEYBOARD: {
+                    TestTextBox *tb = new TestTextBox(target_container);
+                    tb->set_position(relative_pos);
+                    tb->set_fixed_size(Vector2i(150, 25));
+                    tb->set_value("Text");
+                    new_w = tb;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_CARET_DOWN: {
+                    TestComboBox *cb = new TestComboBox(target_container, {"Item 1", "Item 2"});
+                    cb->set_position(relative_pos);
+                    cb->set_fixed_size(Vector2i(150, 25));
+                    new_w = cb;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_CHECK_SQUARE: {
+                    TestCheckBox *cb = new TestCheckBox(target_container, "Checkbox");
+                    cb->set_position(relative_pos);
+                    cb->set_fixed_size(Vector2i(150, 25));
+                    new_w = cb;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_SLIDERS_H: {
+                    TestSlider *sl = new TestSlider(target_container);
+                    sl->set_position(relative_pos);
+                    sl->set_fixed_size(Vector2i(150, 25));
+                    new_w = sl;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_PALETTE: {
+                    TestColorPicker *cp = new TestColorPicker(target_container, Color(255, 0, 0, 255));
+                    cp->set_position(relative_pos);
+                    cp->set_fixed_size(Vector2i(100, 100));
+                    new_w = cp;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                default:
+                    break;
+            }
+            if (new_w) {
+                selected_widget = new_w;
+                update_properties();
+                perform_layout();
+                redraw();
+                return true;
+            }
+        }
+    } else if (!down) {
+        dragging = false;
+        drag_offset = Vector2i(0, 0); // Reset offset when drag ends
     }
 
     return false;
@@ -1478,56 +1709,98 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
         return true;
     }
 
-    if (dragging && (button & (1 << GLFW_MOUSE_BUTTON_1))) {
-        Vector2i delta = p - drag_start;
-        Vector2i new_pos = selected_widget->position() + delta;
+    if (dragging && !TestModeManager::getInstance()->isTestModeEnabled() && 
+        (button & (1 << GLFW_MOUSE_BUTTON_1)) && selected_widget) {
+        // Calculate relative position within the parent, preserving the click offset
+        Widget* parent = selected_widget->parent();
+        if (!parent) return false; // Safety check
+        Vector2i parent_pos = parent->absolute_position();
+        Vector2i new_pos = p - parent_pos - drag_offset;
+        
+        // Constrain position to parent's bounds
+        Vector2i parent_size = parent->size();
+        Vector2i widget_size = selected_widget->size();
+        new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+        new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+        
         selected_widget->set_position(new_pos);
-        drag_start = p;
-        update_properties(); // Update position in properties
+        drag_start = p; // Update drag_start to current mouse position
+        
+        // Update parent layout if applicable
+        parent->perform_layout(m_nvg_context);
+        perform_layout();
+        update_properties();
+        return true;
+    }
+    return false;
+}
+
+bool GUIEditor::mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
+    if (!TestModeManager::getInstance()->isTestModeEnabled() && 
+        dragging && selected_widget && (button & (1 << GLFW_MOUSE_BUTTON_1))) {
+        // Calculate relative position within the parent, preserving the click offset
+        Widget* parent = selected_widget->parent();
+        if (!parent) return false;
+        Vector2i parent_pos = parent->absolute_position();
+        Vector2i local_p = p - parent_pos - drag_offset;
+        
+        // Constrain position to parent's bounds
+        Vector2i parent_size = parent->size();
+        Vector2i widget_size = selected_widget->size();
+        local_p.x() = std::max(0, std::min(local_p.x(), parent_size.x() - widget_size.x()));
+        local_p.y() = std::max(0, std::min(local_p.y(), parent_size.y() - widget_size.y()));
+        
+        selected_widget->set_position(local_p);
+        drag_start = p; // Update drag_start to current mouse position
+        
+        // Update parent layout if applicable
+        parent->perform_layout(m_nvg_context);
+        perform_layout();
+        update_properties();
         return true;
     }
     return false;
 }
 
 bool GUIEditor::keyboard_event(int key, int scancode, int action, int modifiers) {
-    if (Screen::keyboard_event(key, scancode, action, modifiers))
-        return true;
-    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
-        set_visible(false);
-        return true;
-    }
-    return false;
+	if (Screen::keyboard_event(key, scancode, action, modifiers))
+		return true;
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
+		set_visible(false);
+		return true;
+	}
+	return false;
 }
 
 void GUIEditor::draw(NVGcontext *ctx) {
-    Screen::draw(ctx);
+	Screen::draw(ctx);
 }
 
 int main(int /* argc */, char ** /* argv */) {
-    try {
-        nanogui::init();
+		try {
+			nanogui::init();
 
-        /* scoped variables */
-        {
-            ref<GUIEditor> app = new GUIEditor();
-            //app->dec_ref();
-            app->set_visible(true);
-            app->draw_all();
-            nanogui::mainloop();
-        }
+			/* scoped variables */
+			{
+				ref<GUIEditor> app = new GUIEditor();
+				//app->dec_ref();
+				app->set_visible(true);
+				app->draw_all();
+				nanogui::mainloop();
+			}
 
-        nanogui::shutdown();
-    } catch (const std::exception &e) {
-        std::string error_msg = std::string("Caught a fatal error: ") + std::string(e.what());
+			nanogui::shutdown();
+		} catch (const std::exception &e) {
+			std::string error_msg = std::string("Caught a fatal error: ") + std::string(e.what());
 #if defined(_WIN32)
-        MessageBoxA(nullptr, error_msg.c_str(), NULL, MB_ICONERROR | MB_OK);
+			MessageBoxA(nullptr, error_msg.c_str(), NULL, MB_ICONERROR | MB_OK);
 #else
-        std::cerr << error_msg << std::endl;
+			std::cerr << error_msg << std::endl;
 #endif
-        return -1;
-    } catch (...) {
-        std::cerr << "Caught an unknown error!" << std::endl;
-    }
+			return -1;
+		} catch (...) {
+			std::cerr << "Caught an unknown error!" << std::endl;
+		}
 
-    return 0;
+		return 0;
 }
