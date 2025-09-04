@@ -163,6 +163,7 @@ public:
 					   const std::function<void()> &callback, const std::vector<Shortcut> &shortcuts,
 					   				   bool visible = true);
     Dropdown *add_submenu(const std::string &caption, int icon = 0);
+	void remove_item(int index);
 
     /// The current index this Dropdown has selected.
     int selected_index() const { return m_popup->selected_index(); }

@@ -23,7 +23,7 @@ public:
         m_rootWindow = window;
 
         window->set_position(Vector2i(0, 0));
-        window->set_fixed_size(Vector2i(this->width(), this->height()));
+        window->set_size(Vector2i(this->width(), this->height()));
         window->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 0, 0));
 
         ScrollPanel *scrollPanel = new ScrollPanel(window);
@@ -54,6 +54,7 @@ public:
 
         // Short Text header
         Label *shortHeader = new Label(contentContainer, "🐺💺💆🐡🐛🕞🍰🐽🍣🍫🔂🏆🍩", "emoji", 16);
+		//shortHeader->set_selectable(true);
         mainLayout->set_flex_item(shortHeader, FlexLayout::FlexItem(0.0f, 0.0f, -1));
 
         create_label_section(contentContainer, mainLayout, "Short text (Word Wrap):", "Short text example", Label::LineBreakMode::BreakByWordWrapping);
@@ -129,6 +130,7 @@ private:
             
             // Sample text label
             Label *sampleLabel = new Label(column, sampleText);
+			//sampleLabel->set_selectable( true );
             sampleLabel->set_line_break_mode(Label::LineBreakMode::BreakByWordWrapping);
             sampleLabel->set_fixed_width(widths[i]);
             sampleLabel->set_color(Color(0.2f, 0.2f, 0.2f, 1.0f));
@@ -181,7 +183,7 @@ int main() {
             app->dec_ref();
             app->set_visible(true);
             app->draw_all();
-            nanogui::mainloop(1/30.f * 1000);
+            nanogui::mainloop(1/60.f * 1000);
         }
         
         nanogui::shutdown();

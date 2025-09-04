@@ -717,6 +717,48 @@ Dropdown *Dropdown::add_submenu(const string &caption, int icon)
     return ret;
 }
 
+void Dropdown::remove_item(int index) {
+    if (index < 0 || index >= m_popup->child_count()) {
+        return; // Invalid index, do nothing
+    }
+
+    // Get the MenuItem to remove
+    MenuItem* item = m_popup->item(index);
+    if (!item) {
+        return; // Item not found
+    }
+
+    // Increment reference count to prevent deletion during event handling
+    item->inc_ref();
+
+    // Remove the item from the popup
+    m_popup->remove_child(item);
+
+    // Update selected index if necessary
+    if (m_popup->selected_index() == index) {
+        // Select the next valid item, or -1 if no items remain
+        int new_index = -1;
+        if (m_popup->child_count() > 0) {
+            new_index = std::min(index, m_popup->child_count() - 1);
+            if (new_index >= 0) {
+                m_popup->set_selected_index(new_index);
+                if (auto new_item = m_popup->item(new_index)) {
+                    set_caption(new_item->caption());
+                }
+            }
+        } else {
+            m_popup->set_selected_index(-1);
+            set_caption(""); // Clear caption if no items remain
+        }
+    } else if (m_popup->selected_index() > index) {
+        // Adjust selected index if the removed item was before it
+        m_popup->set_selected_index(m_popup->selected_index() - 1);
+    }
+
+    // Decrement reference count after removal
+    item->dec_ref();
+}
+
 Vector2i Dropdown::preferred_size(NVGcontext *ctx) const
 {
     int font_size = m_font_size == -1 ? m_theme->m_button_font_size : m_font_size;

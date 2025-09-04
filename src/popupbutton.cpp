@@ -34,6 +34,7 @@ PopupButton::~PopupButton()
 {
 	// m_popup must be manually disposed
 	// since it isn't in the widget tree
+	// WARNING: set_pushed has caused crashes in the past
 	//this->set_pushed(false);
 	this->m_popup->dispose();
 }

@@ -787,6 +787,8 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
         // Force redraw to update all widgets' appearance
         perform_layout();
         draw_all();
+		//deferred_tasks.push_back([this] { update_properties(); });
+		async([this] { printf("run async\n"); update_properties(); });
     });
     
     // Set initial state
@@ -913,8 +915,8 @@ bool GUIEditor::update_properties() {
         new Label(properties_pane, "Items:", "sans-bold");
         Widget *items_container = new Widget(properties_pane);
         items_container->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 0, 5));
-        for (Widget *child : dropdown->popup()->children()) {
-            if (MenuItem *mi = dynamic_cast<MenuItem*>(child)) {
+		for (int idx = 0; idx < dropdown->popup()->child_count(); ++idx) {
+			if (MenuItem *mi = dynamic_cast<MenuItem*>(dropdown->popup()->child_at(idx))) {
                 Widget *row = new Widget(items_container);
                 row->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 5));
                 TextBox *caption_box = new TextBox(row);
@@ -929,15 +931,21 @@ bool GUIEditor::update_properties() {
                         mi->set_shortcuts({});
                     }
 					*/
-                    perform_layout();
-                    redraw();
+                    //perform_layout();
+                    //redraw();
+					//deferred_tasks.push_back([this] { update_properties(); });
+					async([this] { printf("run async\n"); update_properties(); });
                     return true;
                 });
                 Button *remove_btn = new Button(row, "", FA_MINUS);
                 remove_btn->set_fixed_width(30);
-                remove_btn->set_callback([this, mi, dropdown] {
-                    dropdown->popup()->remove_child(mi);
-					deferred_tasks.push_back([this] { update_properties(); });
+                remove_btn->set_callback([this, idx, dropdown] {
+					//deferred_tasks.push_back([this] { update_properties(); });
+					dropdown->remove_item(idx);
+					async([this] { 
+						printf("run async\n");
+						update_properties(); 
+					});
                 });
             }
         }
@@ -959,7 +967,8 @@ bool GUIEditor::update_properties() {
 				*/
             }
             //update_properties(); // Recursion is bad here
-			deferred_tasks.push_back([this] { update_properties(); });
+			//deferred_tasks.push_back([this] { update_properties(); });
+			async([this] { printf("run async\n"); update_properties(); });
         });
     } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
         new Label(properties_pane, "Caption:", "sans-bold");
@@ -1393,6 +1402,11 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
         // Find the deepest container widget (TestWindow, TestWidget, or canvas_win) for placing new widgets
         Widget *target_container = canvas_win;
         Vector2i relative_pos = p - canvas_win->absolute_position();
+		// Clamp position inside container
+		if( relative_pos.x() < 0 || relative_pos.y() < 0)
+			return false;
+		//relative_pos.x() = std::max(0, std::min( relative_pos.x(), target_container->width() ));
+		//relative_pos.y() = std::max(0, std::min( relative_pos.y(), target_container->height() ));
         
         for (Widget *child : canvas_win->children()) {
             if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
@@ -1610,11 +1624,11 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
 }
 
 bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
-	for (auto& task : deferred_tasks) {
+/*	for (auto& task : deferred_tasks) {
 		printf("run task\n");
         task();
     }
-    deferred_tasks.clear();
+    deferred_tasks.clear(); */
 
     if (Screen::mouse_motion_event(p, rel, button, modifiers)) {
         return true;
