@@ -796,7 +796,9 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     TestModeManager::getInstance()->setTestModeEnabled(false);
 
     // Properties pane
-    new Label(editor_win, "Properties", "sans-bold");
+    auto plabel = new Label(editor_win, "Properties", "sans-bold");
+	plabel->set_fixed_size( Vector2i(200,25) );
+
     properties_pane = new Widget(editor_win);
     GridLayout* layout = new GridLayout(Orientation::Horizontal, 2, 
                                        Alignment::Middle, 15, 5);
@@ -1045,7 +1047,7 @@ bool GUIEditor::update_properties() {
         if (!selected_widget) return false;
         Vector2i size = selected_widget->size();
         size.x() = v;
-        selected_widget->set_fixed_size(size);
+        selected_widget->set_size(size);
         selected_widget->perform_layout(m_nvg_context);
         perform_layout();
         redraw();
@@ -1061,13 +1063,46 @@ bool GUIEditor::update_properties() {
         if (!selected_widget) return false;
         Vector2i size = selected_widget->size();
         size.y() = v;
-        selected_widget->set_fixed_size(size);
+        selected_widget->set_size(size);
         selected_widget->perform_layout(m_nvg_context);
         perform_layout();
         redraw();
         return true;
     });
     height_box->set_fixed_height(20);
+
+	/* FIXED WIDTH */
+    new Label(properties_pane, "Fxd Width:", "sans-bold");
+    IntBox<int> *fwidth_box = new IntBox<int>(properties_pane);
+    fwidth_box->set_value(selected_widget->fixed_width());
+    fwidth_box->set_callback([this](int v) {
+        if (!selected_widget) return false;
+        Vector2i size = selected_widget->size();
+        size.x() = v;
+        selected_widget->set_fixed_size(size);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    fwidth_box->set_fixed_height(20);
+
+    /* FIXED HEIGHT */
+    new Label(properties_pane, "Fxd Height:", "sans-bold");
+    IntBox<int> *fheight_box = new IntBox<int>(properties_pane);
+    fheight_box->set_value(selected_widget->fixed_height());
+    fheight_box->set_callback([this](int v) {
+        if (!selected_widget) return false;
+        Vector2i size = selected_widget->size();
+        size.y() = v;
+        selected_widget->set_fixed_size(size);
+        selected_widget->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    });
+    fheight_box->set_fixed_height(20);
+
 
     /* BACKGROUND COLOR */
     new Label(properties_pane, "BG Color:", "sans-bold");
@@ -1399,15 +1434,39 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
         // Find the deepest widget at the click position
         Widget *clicked_widget = find_widget(p);
         
+        if (current_tool == FA_TRASH) {
+            // Delete tool: Remove the clicked widget if valid
+            if (clicked_widget && clicked_widget->window() != editor_win && clicked_widget != canvas_win) {
+                Widget *parent = clicked_widget->parent();
+                if (parent) {
+                    // If the clicked widget is selected, clear the selection
+                    if (selected_widget == clicked_widget) {
+                        selected_widget = nullptr;
+                    }
+					set_focused(false);
+					notify_widget_destroyed(clicked_widget);
+                    // Increment reference to prevent deletion during removal
+                    clicked_widget->inc_ref();
+                    parent->remove_child(clicked_widget);
+                    // Update UI
+                    //parent->perform_layout(m_nvg_context);
+                    //perform_layout();
+                    update_properties();
+                    redraw();
+                    clicked_widget->dec_ref();
+                    return true;
+                }
+            }
+            return false; // No valid widget to delete
+        }
+
         // Find the deepest container widget (TestWindow, TestWidget, or canvas_win) for placing new widgets
         Widget *target_container = canvas_win;
         Vector2i relative_pos = p - canvas_win->absolute_position();
-		// Clamp position inside container
-		if( relative_pos.x() < 0 || relative_pos.y() < 0)
-			return false;
-		//relative_pos.x() = std::max(0, std::min( relative_pos.x(), target_container->width() ));
-		//relative_pos.y() = std::max(0, std::min( relative_pos.y(), target_container->height() ));
-        
+        // Clamp position inside container
+        if (relative_pos.x() < 0 || relative_pos.y() < 0)
+            return false;
+
         for (Widget *child : canvas_win->children()) {
             if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
                 Vector2i child_pos = child->absolute_position();
@@ -1439,7 +1498,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                 selected_widget = nullptr;
                 update_properties();
             }
-        } else if (current_tool != 0) {
+        } else if (current_tool != 0 && current_tool != FA_TRASH) {
             // Place new widget in the target container
             Widget *new_w = nullptr;
             switch (current_tool) {
@@ -1511,12 +1570,10 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                             mi->set_callback([mi] { std::cout << "Selected item: " << mi->caption() << "\n"; });
                         }
                     }
-					
                     dropdown->set_selected_callback([dropdown](int idx) {
                         if (auto item = dropdown->popup()->item(idx))
                             std::cout << "Dropdown callback - Selected item: " << item->caption() << "\n";
                     });
-				
                     new_w = dropdown;
                     new_w->set_id(generateUniqueId(current_tool));
                 }

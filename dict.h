@@ -637,7 +637,7 @@ static char *dict_parse_json_string(DictJsonParser *p) {
         return NULL;
     }
     // Parse characters until closing quote or error
-    size_t start_pos = p->pos;
+    //size_t start_pos = p->pos;
     size_t out_capacity = 64;
     size_t out_length = 0;
     char *out = (char *)malloc(out_capacity);
@@ -1258,7 +1258,7 @@ static DictValue *bson_deserialize_document_internal(const uint8_t *buf, size_t 
         size_t key_start = pos;
         while (pos < (size_t)doc_len && buf[pos] != 0) pos++;
         if (pos == (size_t)doc_len) goto fail;
-        size_t key_len = pos - key_start;
+        //size_t key_len = pos - key_start;
         const char *key_ptr = (const char *)(buf + key_start);
         pos++;
 

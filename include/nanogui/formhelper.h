@@ -167,7 +167,7 @@ public:
         widget->set_editable(editable);
         widget->set_font_size(m_widget_font_size);
         Vector2i fs = widget->fixed_size();
-        widget->set_fixed_size(Vector2i(fs.x() != 0 ? fs.x() : m_fixed_size.x(),
+        widget->set_size(Vector2i(fs.x() != 0 ? fs.x() : m_fixed_size.x(),
                                       fs.y() != 0 ? fs.y() : m_fixed_size.y()));
         m_refresh_callbacks.push_back(refresh);
         if (m_layout->row_count() > 0)
@@ -192,7 +192,7 @@ public:
     Button *add_button(const std::string &label, const std::function<void()> &cb) {
         Button *button = new Button(m_window, label);
         button->set_callback(cb);
-        button->set_fixed_height(25);
+        button->set_height(25);
         if (m_layout->row_count() > 0)
             m_layout->append_row(m_variable_spacing);
         m_layout->append_row(0);
@@ -243,7 +243,7 @@ public:
     }
 
     /// Specify a fixed size for newly added widgets
-    void set_fixed_size(const Vector2i &fw) { m_fixed_size = fw; }
+    void set_size(const Vector2i &fw) { m_fixed_size = fw; }
 
     /// The current fixed size being used for newly added widgets.
     Vector2i fixed_size() { return m_fixed_size; }
@@ -315,7 +315,7 @@ NAMESPACE_BEGIN(detail)
 template <> class FormWidget<bool, std::true_type> : public CheckBox {
 public:
     /// Creates a new FormWidget with underlying type CheckBox.
-    FormWidget(Widget *p) : CheckBox(p, "") { set_fixed_width(20); }
+    FormWidget(Widget *p) : CheckBox(p, "") { set_width(20); }
 
     /// Pass-through function for \ref nanogui::CheckBox::set_checked.
     void set_value(bool v) { set_checked(v); }

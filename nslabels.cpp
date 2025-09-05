@@ -43,7 +43,7 @@ public:
         // Demo line-break modes
         std::string longText = "This is a very long text that will demonstrate different line breaking modes in NanoGUI labels. It contains multiple words and should show how each mode handles text overflow.";
 
-        create_label_section(contentContainer, mainLayout, "Word Wrapping:", longText, Label::LineBreakMode::BreakByWordWrapping);
+        create_label_section(contentContainer, mainLayout, "Word Wrapping:", longText, Label::LineBreakMode::LineBreakByWordWrapping);
         create_label_section(contentContainer, mainLayout, "Character Wrapping:", longText, Label::LineBreakMode::LineBreakByCharWrapping);
         create_label_section(contentContainer, mainLayout, "Clipping:", longText, Label::LineBreakMode::LineBreakByClipping);
         create_label_section(contentContainer, mainLayout, "Truncating Tail:", longText, Label::LineBreakMode::LineBreakByTruncatingTail);
@@ -57,7 +57,7 @@ public:
 		//shortHeader->set_selectable(true);
         mainLayout->set_flex_item(shortHeader, FlexLayout::FlexItem(0.0f, 0.0f, -1));
 
-        create_label_section(contentContainer, mainLayout, "Short text (Word Wrap):", "Short text example", Label::LineBreakMode::BreakByWordWrapping);
+        create_label_section(contentContainer, mainLayout, "Short text (Word Wrap):", "Short text example", Label::LineBreakMode::LineBreakByWordWrapping);
         create_label_section(contentContainer, mainLayout, "Short text (Truncate Tail):", "Short text example", Label::LineBreakMode::LineBreakByTruncatingTail);
 
         add_spacer(contentContainer, mainLayout);
@@ -92,15 +92,17 @@ private:
         // Title label - fixed width
         Label *titleLabel = new Label(sectionContainer, title, "sans-bold", 13);
         titleLabel->set_color(Color(0.6f, 0.6f, 0.6f, 1.0f));
-        titleLabel->set_fixed_width(160); // Fixed width for consistency
+        //titleLabel->set_fixed_width(160); // Fixed width for consistency
         sectionLayout->set_flex_item(titleLabel, FlexLayout::FlexItem(0.0f, 0.0f, 160));
         
         // Content label - flexible width
-        Label *contentLabel = new Label(sectionContainer, text);
+        Label *contentLabel = new Label(sectionContainer, text, "sans", 24);
         contentLabel->set_line_break_mode(mode);
         contentLabel->set_color(Color(0.1f, 0.1f, 0.1f, 1.0f));
-        contentLabel->set_fixed_width(300); // Set a reasonable width
-        sectionLayout->set_flex_item(contentLabel, FlexLayout::FlexItem(1.0f, 1.0f, 300)); // Allow growing
+        contentLabel->set_min_height(80);
+        contentLabel->set_selectable( true );
+        //contentLabel->set_fixed_width(200); // Set a reasonable width
+        sectionLayout->set_flex_item(contentLabel, FlexLayout::FlexItem(1.0f, 1.0f, 500)); // Allow growing
     }
 
     void create_width_examples(Widget *parent, FlexLayout *parentLayout)
@@ -131,8 +133,9 @@ private:
             // Sample text label
             Label *sampleLabel = new Label(column, sampleText);
 			//sampleLabel->set_selectable( true );
-            sampleLabel->set_line_break_mode(Label::LineBreakMode::BreakByWordWrapping);
-            sampleLabel->set_fixed_width(widths[i]);
+            sampleLabel->set_line_break_mode(Label::LineBreakMode::LineBreakByWordWrapping);
+            sampleLabel->set_min_width(widths[i]);
+            sampleLabel->set_min_height(150);
             sampleLabel->set_color(Color(0.2f, 0.2f, 0.2f, 1.0f));
             columnLayout->set_flex_item(sampleLabel, FlexLayout::FlexItem(0.0f, 0.0f, -1));
         }

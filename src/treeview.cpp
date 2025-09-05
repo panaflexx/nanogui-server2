@@ -46,7 +46,7 @@ void TreeView::create_tree_object(std::string object_name, int Index)
     CurrWidget->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Minimum));
     Label* CurrLabel = new Label(CurrWidget, "");
     CurrLabel->set_fixed_width(20 * m_data_tree->Objects[object_name]->Level);
-    Button* NewButton = new Button(CurrWidget, "", (m_data_tree->Objects[object_name]->Children.size() == 0 ? NULL : (m_data_tree->Objects[object_name]->Expanded ? FA_CARET_DOWN : FA_CARET_RIGHT)));
+    Button* NewButton = new Button(CurrWidget, "", (m_data_tree->Objects[object_name]->Children.size() == 0 ? 0: (m_data_tree->Objects[object_name]->Expanded ? FA_CARET_DOWN : FA_CARET_RIGHT)));
     NewButton->set_transparent(true);
     NewButton->set_icon_extra_scale(2);
     NewButton->set_font_size(15);
@@ -110,7 +110,7 @@ void TreeView::set_fixed_size(const Vector2i& fixed_size)
 void TreeView::set_items(NanoTree* items) {
     if (m_data_tree != items)free(m_data_tree);
     m_data_tree = items;
-    Screen* My_Screen = screen();
+    //Screen* My_Screen = screen();
     while (m_items_container->children().size() > 0)
     {
         screen()->m_focus_path.erase(std::remove(screen()->m_focus_path.begin(), screen()->m_focus_path.end(), m_items_container->child_at(0)), screen()->m_focus_path.end());
