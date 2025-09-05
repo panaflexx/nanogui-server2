@@ -45,6 +45,7 @@ public:
     int current_tool = 0;
     bool dragging = false;
 	Widget* original_parent = nullptr;
+	Widget* potential_parent = nullptr;
     Vector2i drag_start, drag_offset;
     Window *canvas_win;
     Window *editor_win;
@@ -85,8 +86,13 @@ public:
 
     bool keyboard_event(int key, int scancode, int action, int modifiers) override;
 
+	bool resize_event(const Vector2i &size) override;
+
     void draw(NVGcontext *ctx) override;
 private:
+	int snap_grid_size = 0;
+	Vector2i snap(const Vector2i &pos);
+
 	bool canHaveLayout(Widget* widget);
 	std::string getCurrentLayoutType(Widget* widget);
 	int getLayoutTypeIndex(const std::string& type);

@@ -17,7 +17,6 @@
 #include <sstream>
 #include <numeric>
 #include <GLFW/glfw3.h>
-#include <limits>
 
 NAMESPACE_BEGIN(nanogui)
 
@@ -41,7 +40,7 @@ static float measure_text_width(NVGcontext* ctx, const std::string& text) {
 
 Label::Label(Widget *parent, const std::string &caption, const std::string &font, int font_size)
     : Widget(parent), m_caption(caption), m_font(font.empty() ? "sans" : font),
-      m_line_break_mode(LineBreakMode::LineBreakByClipping), m_cache_valid(false),
+      m_line_break_mode(LineBreakMode::LineBreakByWordWrapping), m_cache_valid(false),
       m_selectable(false), m_selection_color(DEFAULT_SELECTION_COLOR),
       m_selection_start(-1), m_selection_end(-1), m_selecting(false),
       m_last_click_pos(0, 0) {
@@ -94,6 +93,14 @@ void Label::set_line_break_mode(LineBreakMode mode) {
     }
 }
 
+void Label::set_fixed_size(const Vector2i &fixed_size) {
+    if (m_fixed_size != fixed_size) {
+        Widget::set_fixed_size(fixed_size);
+        m_cache_valid = false; // Invalidate cache
+        m_selection_start = m_selection_end = -1; // Clear selection
+    }
+}
+
 void Label::set_selectable(bool selectable) {
     if (m_selectable != selectable) {
         m_selectable = selectable;
@@ -107,72 +114,41 @@ Vector2i Label::preferred_size(NVGcontext *ctx) const {
 
     if (!m_cache_valid) {
         if (m_caption.empty()) {
-            m_processed_text = "";
             m_cached_size = Vector2i(0);
+            m_processed_text = "";
             m_cache_valid = true;
             return m_cached_size;
         }
-        if(id().length())
-            printf("CACHED ");
 
         nvgFontFace(ctx, m_font.c_str());
         nvgFontSize(ctx, static_cast<float>(font_size()));
 
-        float available_width = (float) m_size.x();
-        if (available_width <= 0 && parent()) {
-            available_width = (float) parent()->width();
-        }
-
-        float inf = std::numeric_limits<float>::infinity();
-        bool unconstrained = (available_width <= 0);
-        if (unconstrained) {
-            available_width = inf;
-        }
-
-        float used_width = 0.0f;
-        if (available_width < inf) {
-            used_width = available_width;
-        } else {
-            used_width = measure_text_width(ctx, m_caption) + TEXT_MARGIN;
-        }
-
-        if (m_min_size.x() > 0) used_width = std::max(used_width, (float)m_min_size.x());
-        if (m_max_size.x() > 0) used_width = std::min(used_width, (float)m_max_size.x());
-
-        if (used_width < inf) {
-            m_processed_text = process_text_for_mode(ctx, m_caption, used_width);
+        if (m_fixed_size.x() > 0) {
+            m_processed_text = process_text_for_mode(ctx, m_caption, m_fixed_size.x());
             float bounds[4];
             nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 
             switch (m_line_break_mode) {
                 case LineBreakMode::LineBreakByWordWrapping:
                 case LineBreakMode::LineBreakByCharWrapping:
-                    nvgTextBoxBounds(ctx, 0, 0, used_width, m_processed_text.c_str(), nullptr, bounds);
-                    m_cached_size = Vector2i((int)used_width, (int)(bounds[3] - bounds[1]));
+                    nvgTextBoxBounds(ctx, 0, 0, m_fixed_size.x(), m_processed_text.c_str(), nullptr, bounds);
+                    m_cached_size = Vector2i(m_fixed_size.x(), bounds[3] - bounds[1]);
                     break;
 
                 case LineBreakMode::LineBreakByClipping:
                 case LineBreakMode::LineBreakByTruncatingHead:
                 case LineBreakMode::LineBreakByTruncatingTail:
                 case LineBreakMode::LineBreakByTruncatingMiddle:
-                    m_cached_size = Vector2i((int)used_width, font_size());
+                    m_cached_size = Vector2i(m_fixed_size.x(), font_size());
                     break;
             }
         } else {
-            m_processed_text = m_caption;
-            m_cached_size = Vector2i((int)used_width, font_size());
+            nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+            m_processed_text = m_caption; // No processing needed without fixed width
+            m_cached_size = Vector2i(measure_text_width(ctx, m_caption) + TEXT_MARGIN, font_size());
         }
-
-        if (m_min_size.y() > 0) m_cached_size.y() = std::max(m_cached_size.y(), m_min_size.y());
-        if (m_max_size.y() > 0) m_cached_size.y() = std::min(m_cached_size.y(), m_max_size.y());
-
         m_cache_valid = true;
     }
-    
-    if(id().length())
-        printf("LABEL %s size.x=%d min_size.x=%d max_size.x=%d fixed_size.x=%d\n",
-            id().c_str(), m_size.x(), m_min_size.x(), m_max_size.x(), m_fixed_size.x() );
-
     return m_cached_size;
 }
 
@@ -198,12 +174,12 @@ void Label::draw(NVGcontext *ctx) {
     }
 
     // Draw text
-    if (m_size.x() > 0) {
+    if (m_fixed_size.x() > 0) {
         nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
         switch (m_line_break_mode) {
             case LineBreakMode::LineBreakByWordWrapping:
             case LineBreakMode::LineBreakByCharWrapping:
-                nvgTextBox(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_processed_text.c_str(), nullptr);
+                nvgTextBox(ctx, m_pos.x(), m_pos.y(), m_fixed_size.x(), m_processed_text.c_str(), nullptr);
                 break;
 
             case LineBreakMode::LineBreakByClipping:
@@ -315,7 +291,7 @@ int Label::find_char_index(NVGcontext *ctx, const Vector2i &pos) const {
 
     nvgFontFace(ctx, m_font.c_str());
     nvgFontSize(ctx, static_cast<float>(font_size()));
-    nvgTextAlign(ctx, m_size.x() > 0 && (m_line_break_mode == LineBreakMode::LineBreakByWordWrapping ||
+    nvgTextAlign(ctx, m_fixed_size.x() > 0 && (m_line_break_mode == LineBreakMode::LineBreakByWordWrapping ||
                                                m_line_break_mode == LineBreakMode::LineBreakByCharWrapping)
                      ? NVG_ALIGN_LEFT | NVG_ALIGN_TOP
                      : NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
@@ -330,7 +306,7 @@ int Label::find_char_index(NVGcontext *ctx, const Vector2i &pos) const {
         lines.push_back(line);
     }
 
-    if (m_size.x() > 0 && (m_line_break_mode == LineBreakMode::LineBreakByWordWrapping ||
+    if (m_fixed_size.x() > 0 && (m_line_break_mode == LineBreakMode::LineBreakByWordWrapping ||
                                  m_line_break_mode == LineBreakMode::LineBreakByCharWrapping)) {
         // Multi-line text
         int line_index = static_cast<int>(y / line_height);
@@ -370,9 +346,8 @@ int Label::get_selection_bounds(NVGcontext *ctx, int start, int end, std::vector
 
     nvgFontFace(ctx, m_font.c_str());
     nvgFontSize(ctx, static_cast<float>(font_size()));
-    nvgTextAlign(ctx, m_size.x() > 0 && 
-							(m_line_break_mode == LineBreakMode::LineBreakByWordWrapping ||
-                             m_line_break_mode == LineBreakMode::LineBreakByCharWrapping)
+    nvgTextAlign(ctx, m_fixed_size.x() > 0 && (m_line_break_mode == LineBreakMode::LineBreakByWordWrapping ||
+                                               m_line_break_mode == LineBreakMode::LineBreakByCharWrapping)
                      ? NVG_ALIGN_LEFT | NVG_ALIGN_TOP
                      : NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
 
@@ -452,51 +427,23 @@ std::string Label::wrap_by_character(NVGcontext *ctx, const std::string &text, f
         return text;
     }
 
-    nvgFontFace(ctx, m_font.c_str());
-    nvgFontSize(ctx, static_cast<float>(font_size()));
-
     std::string result;
     result.reserve(text.size() + text.size() / 10); // Pre-allocate with estimated newlines
     std::string current_line;
     current_line.reserve(64); // Reasonable initial capacity for a line
 
     for (size_t i = 0; i < text.length(); ++i) {
-        // Handle multi-byte UTF-8 characters correctly
-        std::string next_char;
-        size_t char_len = 1;
-        if ((text[i] & 0xC0) == 0x80) {
-            // Skip continuation bytes
-            continue;
-        } else if ((text[i] & 0xF8) == 0xF0) {
-            char_len = 4;
-        } else if ((text[i] & 0xF0) == 0xE0) {
-            char_len = 3;
-        } else if ((text[i] & 0xE0) == 0xC0) {
-            char_len = 2;
-        }
-        if (i + char_len > text.length()) {
-            break; // Prevent reading past the string
-        }
-        next_char = text.substr(i, char_len);
+        char c = text[i];
+        current_line += c;
 
-        // Measure the width of the current line plus the next character
-        std::string test_line = current_line + next_char;
-        if (measure_text_width(ctx, test_line) > available_width && !current_line.empty()) {
-            // Current line is too wide, commit it and start a new line
-            result += current_line + '\n';
-            current_line = next_char;
-        } else {
-            // Add the character to the current line
-            current_line += next_char;
+        if (measure_text_width(ctx, current_line) > available_width && !current_line.empty()) {
+            result += current_line.substr(0, current_line.size() - 1) + '\n';
+            current_line = c;
         }
-        i += char_len - 1; // Adjust index for multi-byte character
     }
-
-    // Append any remaining text in current_line
     if (!current_line.empty()) {
         result += current_line;
     }
-
     return result;
 }
 

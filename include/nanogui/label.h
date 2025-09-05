@@ -99,11 +99,8 @@ public:
  /// Draw the label with the current text and settings.
  virtual void draw(NVGcontext *ctx) override;
 
- virtual void set_size(Vector2i size) {
-     if(id().length() && size.x() == 0)
-         abort();
-     Widget::set_size( size );
- }
+ /// Set the fixed size and invalidate cached text.
+ virtual void set_fixed_size(const Vector2i &fixed_size) override;
 
  /// Handle mouse button events for text selection.
  virtual bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override;

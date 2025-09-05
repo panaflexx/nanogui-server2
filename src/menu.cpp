@@ -730,6 +730,8 @@ void Dropdown::remove_item(int index) {
 
     // Increment reference count to prevent deletion during event handling
     item->inc_ref();
+	// Clear focus when removing children
+	screen()->update_focus(nullptr);
 
     // Remove the item from the popup
     m_popup->remove_child(item);

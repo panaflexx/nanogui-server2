@@ -104,9 +104,18 @@ public:
     
     /* OVERRIDE: Draw border (green if selected, red if test mode is OFF and not selected) */
     virtual void draw(NVGcontext *ctx) override {
+		GUIEditor* editor = dynamic_cast<GUIEditor*>(screen());
+        if (editor && editor->dragging && editor->potential_parent == this) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgFillColor(ctx, Color(255, 255, 0, 120)); // Semi-transparent yellow
+            nvgFill(ctx);
+            nvgRestore(ctx);
+        }
+
         Widget::draw(ctx);
         
-        GUIEditor* editor = dynamic_cast<GUIEditor*>(screen());
         Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
         
         // Draw border only when selected or test mode is OFF
@@ -711,13 +720,87 @@ public:
     }
 };
 
+class TestCanvasWindow : public Window {
+public:
+    TestCanvasWindow(Widget *parent, const std::string &title = "") 
+        : Window(parent, title) {}
+    
+    virtual void draw(NVGcontext *ctx) override {
+        // Draw yellow highlight if this is the potential parent during dragging
+        GUIEditor* editor = dynamic_cast<GUIEditor*>(screen());
+
+        Window::draw(ctx);
+
+        if (editor && editor->dragging && editor->potential_parent == this) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgFillColor(ctx, Color(255, 255, 0, 120)); // Semi-transparent yellow
+            nvgFill(ctx);
+            nvgRestore(ctx);
+        }
+        
+        Color border = (editor && editor->selected_widget == this) ? Color(0, 255, 0, 255) : Color(255, 0, 0, 255);
+        
+        if ((editor && editor->selected_widget == this) || !TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, m_pos.x(), m_pos.y(), m_size.x(), m_size.y());
+            nvgStrokeColor(ctx, border);
+            nvgStrokeWidth(ctx, (editor && editor->selected_widget == this) ? 2.0f : 1.5f);
+            nvgStroke(ctx);
+            nvgRestore(ctx);
+        }
+
+		// New: Draw resize handles if selected and test mode is OFF
+        if (editor && editor->selected_widget && !TestModeManager::getInstance()->isTestModeEnabled()) {
+            nvgSave(ctx);
+            nvgResetScissor(ctx); // Reset scissor to allow drawing outside clipped area
+			// Get selected widget bounds
+			Vector2i w_pos = editor->selected_widget->absolute_position();
+			Vector2i w_size = editor->selected_widget->size();
+
+            float hs = 8.0f; // Handle size
+            Color handleFill = Color(255, 255, 255, 255); // White fill
+            Color handleStroke = Color(0, 0, 0, 128); // Black outline
+
+            nvgBeginPath(ctx);
+            // Top-left
+            nvgRect(ctx, w_pos.x() - hs / 2, w_pos.y() - hs / 2, hs, hs);
+            // Top-right
+            nvgRect(ctx, w_pos.x() + w_size.x() - hs / 2, w_pos.y() - hs / 2, hs, hs);
+            // Bottom-left
+            nvgRect(ctx, w_pos.x() - hs / 2, w_pos.y() + w_size.y() - hs / 2, hs, hs);
+            // Bottom-right
+            nvgRect(ctx, w_pos.x() + w_size.x() - hs / 2, w_pos.y() + w_size.y() - hs / 2, hs, hs);
+            // Top-middle
+            nvgRect(ctx, w_pos.x() + w_size.x() / 2 - hs / 2, w_pos.y() - hs / 2, hs, hs);
+            // Bottom-middle
+            nvgRect(ctx, w_pos.x() + w_size.x() / 2 - hs / 2, w_pos.y() + w_size.y() - hs / 2, hs, hs);
+            // Left-middle
+            nvgRect(ctx, w_pos.x() - hs / 2, w_pos.y() + w_size.y() / 2 - hs / 2, hs, hs);
+            // Right-middle
+            nvgRect(ctx, w_pos.x() + w_size.x() - hs / 2, w_pos.y() + w_size.y() / 2 - hs / 2, hs, hs);
+
+            nvgFillColor(ctx, handleFill);
+            nvgFill(ctx);
+            nvgStrokeColor(ctx, handleStroke);
+            nvgStrokeWidth(ctx, 1.0f);
+            nvgStroke(ctx);
+
+            nvgRestore(ctx);
+        }
+    }
+};
+
 /* GUIEditor Implementations */
 GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     // Editor window
-    editor_win = new Window(this, "Tools & Properties");
-    editor_win->set_position(Vector2i(15, 15));
+    editor_win = new Window(this, "");
+    editor_win->set_position(Vector2i(0, 0));
     editor_win->set_layout(new BoxLayout(Orientation::Vertical));
     editor_win->set_fixed_width(250);
+    editor_win->set_fixed_height(size().y());
 
     // Toolbar: 4x4 grid
     Widget *toolbar = new Widget(editor_win);
@@ -809,7 +892,8 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     update_properties();
 
     // Canvas window (empty for placing widgets)
-    canvas_win = new Window(this, "Canvas");
+    //canvas_win = new Window(this, "Canvas");
+	canvas_win = new TestCanvasWindow(this, "Canvas");
     canvas_win->set_position(Vector2i(280, 15));
     canvas_win->set_size(Vector2i(700, 700));
     canvas_win->set_layout(nullptr); // Absolute positioning
@@ -818,6 +902,10 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     perform_layout();
 }
 
+Vector2i GUIEditor::snap(const Vector2i &pos) {
+    if (snap_grid_size == 0) return pos;
+    return Vector2i((pos.x() / snap_grid_size) * snap_grid_size, (pos.y() / snap_grid_size) * snap_grid_size);
+}
 
 bool GUIEditor::update_properties() {
     // Clear existing properties
@@ -830,6 +918,19 @@ bool GUIEditor::update_properties() {
         perform_layout();
         redraw();
         return false;
+    }
+
+	if (selected_widget == canvas_win) {
+        new Label(properties_pane, "Snapping:", "sans-bold");
+		Dropdown *snap_combo = new Dropdown(properties_pane, {"Off", "5", "10", "15", "20", "25"},
+											{}, Dropdown::Mode::ComboBox, "Snapping");
+        //ComboBox *snap_combo = new ComboBox(properties_pane, {"Off", "5", "10", "15", "20", "25"});
+        int idx = (snap_grid_size == 0) ? 0 : (snap_grid_size / 5);
+        snap_combo->set_selected_index(idx);
+        snap_combo->set_selected_callback([this](int index) {
+            snap_grid_size = (index == 0) ? 0 : (index * 5);
+        });
+        snap_combo->set_fixed_height(20);
     }
 
     /* WIDGET TYPE DISPLAY */
@@ -936,7 +1037,7 @@ bool GUIEditor::update_properties() {
                     //perform_layout();
                     //redraw();
 					//deferred_tasks.push_back([this] { update_properties(); });
-					async([this] { printf("run async\n"); update_properties(); });
+					//async([this] { printf("run async\n"); update_properties(); });
                     return true;
                 });
                 Button *remove_btn = new Button(row, "", FA_MINUS);
@@ -957,20 +1058,12 @@ bool GUIEditor::update_properties() {
         Button *add_btn = new Button(add_row, "", FA_PLUS);
         add_btn->set_fixed_width(30);
         add_btn->set_callback([this, dropdown] {
-            std::string new_caption = "New Item";
-            dropdown->add_item({new_caption, new_caption + "_tooltip"}, 0, nullptr, {0,0}, true);
-            MenuItem *new_mi = dynamic_cast<MenuItem*>(dropdown->popup()->children().back());
-            if (new_mi) {
-                new_mi->set_callback([new_mi] { std::cout << "Selected item: " << new_mi->caption() << "\n"; });
-				/*
-                if (!new_caption.empty()) {
-                    new_mi->set_shortcuts({{GLFW_MOD_SUPER, (int)new_caption[0]}});
-                }
-				*/
-            }
-            //update_properties(); // Recursion is bad here
-			//deferred_tasks.push_back([this] { update_properties(); });
-			async([this] { printf("run async\n"); update_properties(); });
+            std::string new_caption = "New";
+            Widget *child = dropdown->add_item({new_caption, new_caption + "_tooltip"}, 0, nullptr, {0,0}, true);
+			if (MenuItem *mi = dynamic_cast<MenuItem*>(child)) {
+				mi->set_callback([mi] { std::cout << "Selected item: " << mi->caption() << "\n"; });
+			}
+			async([this] { printf("run async\n"); update_focus(nullptr); update_properties(); });
         });
     } else if (Button *btn = dynamic_cast<Button *>(selected_widget)) {
         new Label(properties_pane, "Caption:", "sans-bold");
@@ -1482,7 +1575,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
 
         if (current_tool == FA_MOUSE_POINTER) {
             // Selection logic: Select the deepest widget, or the container if no child is hit
-            if (clicked_widget && clicked_widget->window() != editor_win) {
+            if (clicked_widget && (clicked_widget==canvas_win || canvas_win->child_index(clicked_widget) >= 0 )) {
                 // Select the deepest widget (could be a container or child), excluding editor_win and its children
                 printf("Selected widget %s\n", clicked_widget->id().c_str());
                 selected_widget = clicked_widget;
@@ -1615,10 +1708,13 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
         }
     } else if (!down && dragging) {
         // Handle reparenting when the mouse button is released
-        if (selected_widget) {
+        if (selected_widget && canvas_win != selected_widget) {
             // Find the container under the mouse
             Widget *new_parent = canvas_win;
             Vector2i new_pos = p - canvas_win->absolute_position() - drag_offset;
+			if(selected_widget != canvas_win)
+				new_pos = snap(new_pos);
+
             for (Widget *child : canvas_win->children()) {
                 if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
                     Vector2i child_pos = child->absolute_position();
@@ -1661,6 +1757,7 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
                 if (current_parent) {
                     Vector2i parent_pos = current_parent->absolute_position();
                     new_pos = p - parent_pos - drag_offset;
+					new_pos = snap(new_pos);
                     Vector2i parent_size = current_parent->size();
                     Vector2i widget_size = selected_widget->size();
                     new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
@@ -1675,18 +1772,13 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
         dragging = false;
         drag_offset = Vector2i(0, 0); // Reset offset
         original_parent = nullptr; // Reset original parent
+		potential_parent = nullptr; // Reset potential parent
     }
 
     return false;
 }
 
 bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
-/*	for (auto& task : deferred_tasks) {
-		printf("run task\n");
-        task();
-    }
-    deferred_tasks.clear(); */
-
     if (Screen::mouse_motion_event(p, rel, button, modifiers)) {
         return true;
     }
@@ -1695,9 +1787,20 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
         (button & (1 << GLFW_MOUSE_BUTTON_1)) && selected_widget) {
         // Find the container under the mouse
         Widget *current_parent = selected_widget->parent();
-        if (!current_parent) return false; // Safety check
+
+        if (!current_parent) return false;
+		if (canvas_win == selected_widget) {
+			dragging = false;
+			drag_offset = Vector2i(0, 0); // Reset offset
+			original_parent = nullptr; // Reset original parent
+			potential_parent = nullptr; // Reset potential parent
+			return false; // Safety check
+		}
+
         Vector2i parent_pos = current_parent->absolute_position();
         Vector2i new_pos = p - parent_pos - drag_offset;
+		if(selected_widget != canvas_win)
+				new_pos = snap(new_pos);
 
         // Constrain position to current parent's bounds
         Vector2i parent_size = current_parent->size();
@@ -1708,6 +1811,31 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
         // Update position relative to current parent (reparenting happens on release)
         selected_widget->set_position(new_pos);
         drag_start = p; // Update drag_start to current mouse position
+
+		// Find potential new parent for highlighting
+        Widget *new_potential_parent = canvas_win;
+        for (Widget *child : canvas_win->children()) {
+            if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
+                Vector2i child_pos = child->absolute_position();
+                Vector2i child_size = child->size();
+                Vector2i local_p = p - child_pos;
+                if (local_p.x() >= 0 && local_p.y() >= 0 && local_p.x() < child_size.x() && local_p.y() < child_size.y()) {
+                    new_potential_parent = child;
+                    break;
+                }
+            }
+        }
+        // Only set potential parent if it's a valid reparenting target
+        if (new_potential_parent != selected_widget->parent() && new_potential_parent->window() != editor_win && 
+            new_potential_parent != selected_widget) {
+            if (potential_parent != new_potential_parent) {
+                potential_parent = new_potential_parent;
+                redraw();
+            }
+        } else if (potential_parent != nullptr) {
+            potential_parent = nullptr;
+            redraw();
+        }
 
         // Update parent layout if applicable
         current_parent->perform_layout(m_nvg_context);
@@ -1721,6 +1849,11 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
 bool GUIEditor::mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
     if (!TestModeManager::getInstance()->isTestModeEnabled() && 
         dragging && selected_widget && (button & (1 << GLFW_MOUSE_BUTTON_1))) {
+
+		if(selected_widget == canvas_win) {
+			// Disable dragging the canvas - it causes weird issues
+			return false;
+		}
         // Use current parent for position updates during drag
         Widget *current_parent = selected_widget->parent();
         if (!current_parent) return false;
@@ -1757,7 +1890,33 @@ bool GUIEditor::keyboard_event(int key, int scancode, int action, int modifiers)
 }
 
 void GUIEditor::draw(NVGcontext *ctx) {
+    // Draw grid dots on canvas when snapping is enabled
+    if (snap_grid_size > 0) {
+        Vector2i canvas_pos = canvas_win->absolute_position();
+        Vector2i canvas_size = canvas_win->size();
+        nvgSave(ctx);
+        nvgFillColor(ctx, Color(255, 255, 255, 255)); // Bright white dots
+        for (int x = snap_grid_size; x <= canvas_size.x(); x += snap_grid_size) {
+            for (int y = snap_grid_size; y <= canvas_size.y(); y += snap_grid_size) {
+                nvgBeginPath(ctx);
+                nvgCircle(ctx, canvas_pos.x() + x, canvas_pos.y() + y, 1.0f);
+                nvgFill(ctx);
+            }
+        }
+        nvgRestore(ctx);
+    }
+
     Screen::draw(ctx);
+}
+
+// Makes background window resize with system window (screen)
+bool GUIEditor::resize_event(const Vector2i &size) {
+	if (editor_win) {
+		editor_win->set_fixed_height(size.y());
+		perform_layout(); 
+	}
+	Screen::resize_event(size);
+	return true;
 }
 
 int main(int /* argc */, char ** /* argv */) {

@@ -1105,6 +1105,12 @@ void Screen::update_focus(Widget* widget) {
 */
 
 void Screen::update_focus(Widget* widget) {
+	// Clear focus
+	if(!widget) {
+		m_focus_path.clear();
+		return;
+	}
+
     for (auto w : m_focus_path) {
         if (w == nullptr || !w->focused())
             continue;
