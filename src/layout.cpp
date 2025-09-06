@@ -650,10 +650,10 @@ void FlexLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
     int y_offset = 0;
     const Window *window = dynamic_cast<const Window*>(widget);
     if (window && !window->title().empty()) {
+		y_offset = widget->theme()->m_window_header_height;
         if (!is_row_direction()) {
             container_size.y() -= widget->theme()->m_window_header_height - m_margin / 2;
         } else {
-            y_offset = widget->theme()->m_window_header_height;
             container_size.y() -= y_offset;
         }
     }
