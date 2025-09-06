@@ -863,6 +863,8 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     testModeRow->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Fill, 0, 5));
     
     test_mode_checkbox = new CheckBox(testModeRow, "Test Mode");
+    test_mode_checkbox->set_height(25);
+    test_mode_checkbox->set_min_height(25);
     test_mode_checkbox->set_callback([this](bool checked) {
         selected_widget = nullptr; // deselect current widget focus
         TestModeManager::getInstance()->setTestModeEnabled(checked);
