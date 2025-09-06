@@ -895,11 +895,12 @@ GUIEditor::GUIEditor() : Screen(Vector2i(1024, 768), "GUI Editor") {
     //canvas_win = new Window(this, "Canvas");
 	canvas_win = new TestCanvasWindow(this, "Canvas");
     canvas_win->set_position(Vector2i(280, 15));
-    canvas_win->set_size(Vector2i(700, 700));
+    canvas_win->set_size(Vector2i(100, 70));
     canvas_win->set_layout(nullptr); // Absolute positioning
     canvas_win->set_id("CANVAS"); // Set ID for canvas_win
 
     perform_layout();
+    canvas_win->set_size(Vector2i(700, 700));
 }
 
 Vector2i GUIEditor::snap(const Vector2i &pos) {
@@ -931,6 +932,16 @@ bool GUIEditor::update_properties() {
             snap_grid_size = (index == 0) ? 0 : (index * 5);
         });
         snap_combo->set_fixed_height(20);
+
+        new Label(properties_pane, "Resizable:", "sans-bold");
+		CheckBox *resize_checkbox = new CheckBox(properties_pane, "");
+		resize_checkbox->set_checked( canvas_win->resizable() );
+		resize_checkbox->set_callback([this](bool checked) {
+			canvas_win->set_resizable( checked );
+			// Force redraw to update all widgets' appearance
+			//canvas_win->perform_layout();
+		});
+ 
     }
 
     /* WIDGET TYPE DISPLAY */
@@ -1516,6 +1527,17 @@ std::string GUIEditor::generateUniqueId(int icon) {
     }
 }
 
+// Recursive search widget tree
+static bool is_child(Widget *find, Widget *search) {
+	for (Widget *child : search->children()) {
+		if(child == find)
+			return true;
+		else
+			return is_child(child, search);
+	}
+	return false;
+}
+
 bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
     m_redraw = true; // Force redraw on all mouse events
 
@@ -1575,7 +1597,8 @@ bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int
 
         if (current_tool == FA_MOUSE_POINTER) {
             // Selection logic: Select the deepest widget, or the container if no child is hit
-            if (clicked_widget && (clicked_widget==canvas_win || canvas_win->child_index(clicked_widget) >= 0 )) {
+			
+            if (clicked_widget && (clicked_widget==canvas_win || is_child(clicked_widget, canvas_win) )) {
                 // Select the deepest widget (could be a container or child), excluding editor_win and its children
                 printf("Selected widget %s\n", clicked_widget->id().c_str());
                 selected_widget = clicked_widget;
