@@ -243,7 +243,7 @@ public:
 
         // Store pixel data for main thread
         pthread_mutex_lock(&screen->m_highResMutex);
-        if (screen->m_threadRunning) {
+        if (screen->m_threadRunningHighRes) {
             if (screen->m_pendingHighResPixels) {
                 stbi_image_free(screen->m_pendingHighResPixels);
             }
@@ -266,6 +266,7 @@ public:
         if (button == GLFW_MOUSE_BUTTON_LEFT && down) {
 			if (m_fullscreenImage != -1) {
 				// In fullscreen mode, exit fullscreen and cancel loading thread
+				printf("Exit fullscreen mode\n");
 				pthread_mutex_lock(&m_highResMutex);
 				if (m_threadRunningHighRes) {
 					pthread_cancel(m_loadHighResThread);
@@ -284,6 +285,7 @@ public:
 					m_fullscreenHighResImg = nullptr;
 				}
 				if (m_highResImage != 0) {
+					printf("Delete m_highResImage\n");
 					nvgDeleteImage(m_nvg_context, m_highResImage);
 					m_highResImage = 0;
 				}
@@ -296,7 +298,7 @@ public:
 				m_fullscreenImage = -1;
 				m_redraw = true;
 				glfwPostEmptyEvent();
-				return true;
+				return true; // return so click doesn't go through to select new image
 			}
 
             // In thumbnail mode, check if click is on an image
@@ -379,6 +381,8 @@ public:
 
         // Check for pending high-res image and create texture
 		if (m_pendingHighResPixels) {
+			printf("m_pendingHighResPixels active...\n");
+
 			if (m_fullscreenHighResImg) {
 				stbi_image_free(m_fullscreenHighResImg->pixels);
 				free(m_fullscreenHighResImg);
@@ -471,6 +475,7 @@ public:
             }
             if (now >= m_animationEnd) {
 				if (!m_isEnteringFullscreen) {
+					// Cancel pending fullscreen image
 					pthread_mutex_lock(&m_highResMutex);
 					if (m_threadRunningHighRes) {
 						pthread_cancel(m_loadHighResThread);
@@ -497,6 +502,7 @@ public:
 					pthread_mutex_unlock(&m_highResMutex);
 					m_redraw = true;
 					glfwPostEmptyEvent();
+					printf("Cancelled high res load\n");
 				}
 			}
         }
@@ -532,10 +538,12 @@ public:
             float full_w, full_h, full_x, full_y;
             bool useHighRes = false;
 
+			if(m_highResImage > 0)
+				printf("Have highResImage\n");
+
             pthread_mutex_lock(&m_highResMutex);
-            if ((int)i == m_fullscreenImage && m_highResImage > 0 && t > 0.5f) {
+            if ((int)i == m_fullscreenImage && m_highResImage > 0 && t > 0.2f) {
                 useHighRes = true;
-                printf("Drawing high-res image\n");
                 full_w = m_fullscreenHighResImg->width;
                 full_h = m_fullscreenHighResImg->height;
                 float scale = std::min((float)width() / full_w, (float)height() / full_h) * 0.9f;
@@ -570,11 +578,13 @@ public:
             }
 
             // Draw blue border
+#if 0
             nvgBeginPath(m_nvg_context);
             nvgRect(m_nvg_context, draw_x - borderSize, draw_y - borderSize,
                     draw_w + 2 * borderSize, draw_h + 2 * borderSize);
             nvgFillColor(m_nvg_context, nvgRGBA(0, 0, 255, (unsigned char)(255 * alpha)));
             nvgFill(m_nvg_context);
+#endif
 
             // Draw image
             nvgSave(m_nvg_context);
