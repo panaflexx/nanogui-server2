@@ -180,11 +180,30 @@ void mainloop(float refresh) {
     );
 
     try {
-        while (mainloop_active)
-            mainloop_iteration();
+		auto last_time = std::chrono::steady_clock::now();
+		int frame_count = 0;
+		double elapsed_total = 0.0;
 
-        /* Process events once more */
-        glfwPollEvents();
+		while (mainloop_active) {
+			auto current_time = std::chrono::steady_clock::now();
+			auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(current_time - last_time).count() / 1'000'000.0;
+			last_time = current_time;
+			frame_count++;
+			elapsed_total += elapsed;
+
+			mainloop_iteration();
+
+			// Print FPS every second
+			if (elapsed_total >= 1.0) {
+				float fps = frame_count / elapsed_total;
+				std::cout << "FPS: " << fps << std::endl;
+				frame_count = 0;
+				elapsed_total = 0.0;
+			}
+
+			/* Process events once more */
+			glfwPollEvents();
+		}
     } catch (const std::exception &e) {
         std::cerr << "Caught exception in main loop: " << e.what() << std::endl;
         leave();

@@ -36,6 +36,9 @@
 #include "stb_image.h"
 #endif
 
+#define IMAGESTASH_IMPLEMENTATION
+#include "imagestash.h"
+
 #ifdef _MSC_VER
 #pragma warning(disable: 4100)  // unreferenced formal parameter
 #pragma warning(disable: 4127)  // conditional expression is constant

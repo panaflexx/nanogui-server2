@@ -22,6 +22,13 @@ NAMESPACE_BEGIN(nanogui)
 
 enum class Cursor; // do not put a docstring, this is already documented
 
+enum class SizeMode {
+    Minimum,   // Use min_size, no growth
+    Preferred, // Use preferred_size, no growth/shrink
+    Expanding, // Grow to fill available space
+    Fixed      // Use fixed_size, no growth/shrink
+};
+
 /**
  * \class Widget widget.h nanogui/widget.h
  *
@@ -119,6 +126,12 @@ public:
     void set_min_width(int width) { m_min_size.x() = width; }
     /// Set the fixed height (see \ref set_fixed_size())
     void set_min_height(int height) { m_min_size.y() = height; }
+
+	// New flex sizing 
+	void set_width_flex(SizeMode mode) { m_width_mode = mode; }
+    void set_height_flex(SizeMode mode) { m_height_mode = mode; }
+    SizeMode width_mode() const { return m_width_mode; }
+    SizeMode height_mode() const { return m_height_mode; }
 
     /// Return whether or not the widget is currently visible (assuming all parents are visible)
     bool visible() const { return m_visible; }
@@ -295,6 +308,10 @@ protected:
     //Vector2i m_pos, m_size, m_fixed_size;
 	Vector2i m_pos, m_size, m_fixed_size, m_min_size, m_max_size;
     std::vector<Widget*> m_children;
+
+	SizeMode m_width_mode = SizeMode::Preferred;
+    SizeMode m_height_mode = SizeMode::Preferred;
+
     /**
      * Whether or not this Widget is currently visible.  When a Widget is not
      * currently visible, no time is wasted executing its drawing method.
