@@ -82,7 +82,7 @@ static float emscripten_refresh = 0;
 std::mutex m_async_mutex;
 std::vector<std::function<void()>> m_async_functions;
 
-void mainloop(float refresh) {
+void mainloop(float refresh, bool show_fps) {
     if (mainloop_active)
         throw std::runtime_error("Main loop is already running!");
 
@@ -194,9 +194,11 @@ void mainloop(float refresh) {
 			mainloop_iteration();
 
 			// Print FPS every second
-			if (elapsed_total >= 1.0) {
+			if (elapsed_total >= 1.0 && show_fps) {
 				float fps = frame_count / elapsed_total;
-				std::cout << "FPS: " << fps << std::endl;
+				//std::cout << "FPS: " << fps << std::endl;
+				printf("FPS: %0.1f     \r", fps);
+				fflush(stdout);
 				frame_count = 0;
 				elapsed_total = 0.0;
 			}

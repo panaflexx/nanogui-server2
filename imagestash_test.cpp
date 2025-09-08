@@ -19,19 +19,14 @@ extern "C" {
 
 using namespace nanogui;
 
-class ImageStashScreen : public Screen {
+class ImageStashWidget : public Widget {
 public:
-    ImageStashScreen(const std::vector<std::string>& imagePaths)
-        : Screen(Vector2i(800, 600), "NanoGUI ImageStash Test"), m_imagePaths(imagePaths) {
-        // Initialize NanoVG context (handled by NanoGUI)
+    ImageStashWidget(Widget* parent, const std::vector<std::string>& imagePaths)
+        : Widget(parent), m_imagePaths(imagePaths) {
+        // Get NanoVG context from the screen
+        m_nvg_context = screen()->nvg_context();
         if (!m_nvg_context) {
             throw std::runtime_error("NanoVG context not initialized");
-        }
-
-        // Load a font for text rendering
-        int fontId = nvgCreateFont(m_nvg_context, "sans", "Roboto-Regular.ttf");
-        if (fontId == -1) {
-            std::cerr << "Could not load font 'Roboto-Regular.ttf'" << std::endl;
         }
 
         // Initialize imagestash
@@ -57,10 +52,13 @@ public:
         pthread_create(&m_loadThread, nullptr, loadImages, this);
         m_threadRunning = true;
 
-        perform_layout();
+        // Request redraw
+        //set_needs_redraw();
+		set_visible( true );
+		m_size = parent->size();
     }
 
-    ~ImageStashScreen() {
+    ~ImageStashWidget() {
         // Cancel and join any running thread
         if (m_threadRunning) {
             pthread_cancel(m_loadThread);
@@ -102,6 +100,53 @@ public:
         }
     }
 
+    Vector2i preferred_size(NVGcontext* ctx) const override {
+        // Calculate the size needed to display all images, title, and filtered image
+        float posx = 10;
+        float posy = 50; // Start below title
+        float maxHeightInRow = 0;
+        const float borderSize = 4.0f;
+        const float textHeight = 20.0f;
+        const float padding = 10.0f;
+        const float titleHeight = 30.0f; // Height for "Loaded Images" title
+		const float wrap_width = parent()->size().x() - 25;
+
+        for (const auto& img : m_images) {
+            if (img.atlasX < 0 || img.atlasY < 0) continue;
+
+            if (posx + img.w + 2 * borderSize + padding > wrap_width) { // Assume max width similar to previous setup
+                posx = 10;
+                posy += maxHeightInRow + textHeight + padding;
+                maxHeightInRow = 0;
+            }
+            maxHeightInRow = std::max(maxHeightInRow, (float)img.h + 2 * borderSize);
+            posx += img.w + 2 * borderSize + padding;
+        }
+
+        // Account for filtered image
+        if (m_filteredImg) {
+            if (posx + m_filteredImg->width + 2 * borderSize + padding > wrap_width) {
+                posx = 10;
+                posy += maxHeightInRow + textHeight + padding;
+            }
+            maxHeightInRow = std::max(maxHeightInRow, (float)m_filteredImg->height + 2 * borderSize);
+            posx += m_filteredImg->width + 2 * borderSize + padding;
+        }
+
+        // Add final row height and padding
+        posy += maxHeightInRow + textHeight + padding;
+
+        // Return preferred size (width based on screen, height based on content)
+		//printf("preferred_size = %dx%d\n", m_size.x(), (int)posy);
+        return Vector2i(wrap_width, (int)posy);
+    }
+
+/*    void perform_layout(NVGcontext* ctx) override {
+        // Update internal layout parameters based on current size
+        m_redraw = true;
+        //set_needs_redraw();
+    } */
+
     struct PendingImage {
         std::string name;
         std::string path;
@@ -111,19 +156,22 @@ public:
     };
 
     struct LoadThreadData {
-        ImageStashScreen* screen;
+        ImageStashWidget* widget;
         std::string path;
     };
 
-    static void* loadImagesOld(void* arg) {
-        ImageStashScreen* screen = (ImageStashScreen*)arg;
+    static void* loadImages(void* arg) {
+        ImageStashWidget* widget = (ImageStashWidget*)arg;
         printf("loadImages start\n");
 
         // Enable cancellation
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, nullptr);
         pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr);
 
-        for (const auto& path : screen->m_imagePaths) {
+        const int maxWidth = 128;
+        const int maxHeight = 128;
+
+        for (const auto& path : widget->m_imagePaths) {
             std::string name = path.substr(path.find_last_of("/\\") + 1);
             int w, h, n;
             unsigned char* pixels = stbi_load(path.c_str(), &w, &h, &n, 4); // Force RGBA
@@ -133,96 +181,55 @@ public:
                 continue;
             }
 
-            printf("loadImages loaded: %s, %dx%d\n", name.c_str(), w, h);
+            // Resize if needed
+            unsigned char* data = pixels;
+            if (w > maxWidth || h > maxHeight) {
+                float scale = fminf((float)maxWidth / w, (float)maxHeight / h);
+                int nw = (int)(w * scale);
+                int nh = (int)(h * scale);
+                unsigned char* resized = (unsigned char*)malloc(nw * nh * 4);
+                if (!resized) {
+                    stbi_image_free(data);
+                    std::cerr << "Failed to allocate memory for resized image: " << name << std::endl;
+                    continue;
+                }
 
-            pthread_mutex_lock(&screen->m_highResMutex);
-            if (screen->m_threadRunning) {
-                screen->m_pendingImages.push_back({name, path, pixels, w, h});
-                screen->m_redraw = true;
-                glfwPostEmptyEvent();
-            } else {
-                stbi_image_free(pixels);
+                if (!stbir_resize_uint8_linear(data, w, h, 0, resized, nw, nh, 0, STBIR_RGBA)) {
+                    free(resized);
+                    stbi_image_free(data);
+                    std::cerr << "Failed to resize image: " << name << std::endl;
+                    continue;
+                }
+                stbi_image_free(data);
+                data = resized;
+                w = nw;
+                h = nh;
             }
-            pthread_mutex_unlock(&screen->m_highResMutex);
+
+            //printf("loadImages loaded: %s, %dx%d\n", name.c_str(), w, h);
+
+            pthread_mutex_lock(&widget->m_highResMutex);
+            if (widget->m_threadRunning) {
+                widget->m_pendingImages.push_back({name, path, data, w, h});
+                widget->m_redraw = true;
+                glfwPostEmptyEvent();
+				printf("loadImages: added image\n");
+            } else {
+                free(data);
+            }
+            pthread_mutex_unlock(&widget->m_highResMutex);
         }
 
-        pthread_mutex_lock(&screen->m_highResMutex);
-        screen->m_threadRunning = false;
-        pthread_mutex_unlock(&screen->m_highResMutex);
+        pthread_mutex_lock(&widget->m_highResMutex);
+        widget->m_threadRunning = false;
+        pthread_mutex_unlock(&widget->m_highResMutex);
         printf("loadImages completed\n");
         return nullptr;
     }
 
-	static void* loadImages(void* arg) {
-		ImageStashScreen* screen = (ImageStashScreen*)arg;
-		printf("loadImages start\n");
-
-		// Enable cancellation
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, nullptr);
-		pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr);
-
-		const int maxWidth = 128;
-		const int maxHeight = 128;
-
-		for (const auto& path : screen->m_imagePaths) {
-			std::string name = path.substr(path.find_last_of("/\\") + 1);
-			int w, h, n;
-			unsigned char* pixels = stbi_load(path.c_str(), &w, &h, &n, 4); // Force RGBA
-			pthread_testcancel(); // Cancellation point
-			if (!pixels) {
-				std::cerr << "Failed to load image: " << path << std::endl;
-				continue;
-			}
-
-			// Resize if needed
-			unsigned char* data = pixels;
-			if (w > maxWidth || h > maxHeight) {
-				float scale = fminf((float)maxWidth / w, (float)maxHeight / h);
-				int nw = (int)(w * scale);
-				int nh = (int)(h * scale);
-				unsigned char* resized = (unsigned char*)malloc(nw * nh * 4);
-				if (!resized) {
-					stbi_image_free(data);
-					std::cerr << "Failed to allocate memory for resized image: " << name << std::endl;
-					continue;
-				}
-
-				if (!stbir_resize_uint8_linear(data, w, h, 0, resized, nw, nh, 0, STBIR_RGBA)) {
-					free(resized);
-					stbi_image_free(data);
-					std::cerr << "Failed to resize image: " << name << std::endl;
-					continue;
-				}
-				stbi_image_free(data);
-				data = resized;
-				w = nw;
-				h = nh;
-			}
-
-			printf("loadImages loaded: %s, %dx%d\n", name.c_str(), w, h);
-
-			pthread_mutex_lock(&screen->m_highResMutex);
-			if (screen->m_threadRunning) {
-				screen->m_pendingImages.push_back({name, path, data, w, h});
-				screen->m_redraw = true;
-				glfwPostEmptyEvent();
-			} else {
-				free(data);
-			}
-			pthread_mutex_unlock(&screen->m_highResMutex);
-		}
-
-		pthread_mutex_lock(&screen->m_highResMutex);
-		screen->m_threadRunning = false;
-		pthread_mutex_unlock(&screen->m_highResMutex);
-		printf("loadImages completed\n");
-		return nullptr;
-	}
-
     static void* loadHighResImage(void* arg) {
-        printf("loadHighResImage start\n");
         LoadThreadData* data = (LoadThreadData*)arg;
-        ImageStashScreen* screen = data->screen;
+        ImageStashWidget* widget = data->widget;
         const std::string& path = data->path;
 
         // Enable cancellation
@@ -233,7 +240,6 @@ public:
         int w, h, n;
         unsigned char* pixels = stbi_load(path.c_str(), &w, &h, &n, 4); // Force RGBA
         pthread_testcancel(); // Cancellation point
-        printf("loadHighResImage loaded: %dx%d\n", w, h);
 
         if (!pixels) {
             std::cerr << "Failed to load high-res image: " << path << std::endl;
@@ -242,21 +248,20 @@ public:
         }
 
         // Store pixel data for main thread
-        pthread_mutex_lock(&screen->m_highResMutex);
-        if (screen->m_threadRunningHighRes) {
-            if (screen->m_pendingHighResPixels) {
-                stbi_image_free(screen->m_pendingHighResPixels);
+        pthread_mutex_lock(&widget->m_highResMutex);
+        if (widget->m_threadRunningHighRes) {
+            if (widget->m_pendingHighResPixels) {
+                stbi_image_free(widget->m_pendingHighResPixels);
             }
-            screen->m_pendingHighResPixels = pixels;
-            screen->m_pendingHighResWidth = w;
-            screen->m_pendingHighResHeight = h;
-            screen->m_redraw = true;
+            widget->m_pendingHighResPixels = pixels;
+            widget->m_pendingHighResWidth = w;
+            widget->m_pendingHighResHeight = h;
+            widget->m_redraw = true;
             glfwPostEmptyEvent();
         } else {
             stbi_image_free(pixels);
         }
-        pthread_mutex_unlock(&screen->m_highResMutex);
-        printf("loadHighResImage completed\n");
+        pthread_mutex_unlock(&widget->m_highResMutex);
 
         free(data);
         return nullptr;
@@ -264,42 +269,40 @@ public:
 
     bool mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override {
         if (button == GLFW_MOUSE_BUTTON_LEFT && down) {
-			if (m_fullscreenImage != -1) {
-				// In fullscreen mode, exit fullscreen and cancel loading thread
-				printf("Exit fullscreen mode\n");
-				pthread_mutex_lock(&m_highResMutex);
-				if (m_threadRunningHighRes) {
-					pthread_cancel(m_loadHighResThread);
-					pthread_join(m_loadHighResThread, nullptr);
-					m_threadRunningHighRes = false;
-				}
-				if (m_pendingHighResPixels) {
-					stbi_image_free(m_pendingHighResPixels);
-					m_pendingHighResPixels = nullptr;
-					m_pendingHighResWidth = 0;
-					m_pendingHighResHeight = 0;
-				}
-				if (m_fullscreenHighResImg) {
-					stbi_image_free(m_fullscreenHighResImg->pixels);
-					free(m_fullscreenHighResImg);
-					m_fullscreenHighResImg = nullptr;
-				}
-				if (m_highResImage != 0) {
-					printf("Delete m_highResImage\n");
-					nvgDeleteImage(m_nvg_context, m_highResImage);
-					m_highResImage = 0;
-				}
-				m_threadRunningHighRes = false; // Ensure reset
-				pthread_mutex_unlock(&m_highResMutex);
+            if (m_fullscreenImage != -1) {
+                // In fullscreen mode, exit fullscreen and cancel loading thread
+                pthread_mutex_lock(&m_highResMutex);
+                if (m_threadRunningHighRes) {
+                    pthread_cancel(m_loadHighResThread);
+                    pthread_join(m_loadHighResThread, nullptr);
+                    m_threadRunningHighRes = false;
+                }
+                if (m_pendingHighResPixels) {
+                    stbi_image_free(m_pendingHighResPixels);
+                    m_pendingHighResPixels = nullptr;
+                    m_pendingHighResWidth = 0;
+                    m_pendingHighResHeight = 0;
+                }
+                if (m_fullscreenHighResImg) {
+                    stbi_image_free(m_fullscreenHighResImg->pixels);
+                    free(m_fullscreenHighResImg);
+                    m_fullscreenHighResImg = nullptr;
+                }
+                if (m_highResImage != 0) {
+                    nvgDeleteImage(m_nvg_context, m_highResImage);
+                    m_highResImage = 0;
+                }
+                m_threadRunningHighRes = false; // Ensure reset
+                pthread_mutex_unlock(&m_highResMutex);
 
-				m_animationStart = std::chrono::steady_clock::now();
-				m_animationEnd = m_animationStart + std::chrono::milliseconds(400);
-				m_isEnteringFullscreen = false;
-				m_fullscreenImage = -1;
-				m_redraw = true;
-				glfwPostEmptyEvent();
-				return true; // return so click doesn't go through to select new image
-			}
+                m_animationStart = std::chrono::steady_clock::now();
+                m_animationEnd = m_animationStart + std::chrono::milliseconds(400);
+                m_isEnteringFullscreen = false;
+                m_fullscreenImage = -1;
+                m_redraw = true;
+                glfwPostEmptyEvent();
+                return true; // return so click doesn't go through to select new image
+            }
 
             // In thumbnail mode, check if click is on an image
             float posx = 10;
@@ -343,123 +346,27 @@ public:
                 posx += img.w + 2 * borderSize + padding;
             }
         }
-        return Screen::mouse_button_event(p, button, down, modifiers);
+        return Widget::mouse_button_event(p, button, down, modifiers);
     }
 
-    virtual void draw_contents() override {
-        Screen::draw_contents();
+    void draw(NVGcontext* ctx) override {
+        Widget::draw(ctx);
+		m_redraw = false;
 
-        // Process pending images
-        pthread_mutex_lock(&m_highResMutex);
-        for (auto& pending : m_pendingImages) {
-            if (imgsAddPixels(m_stash, pending.name.c_str(), pending.pixels, pending.width, pending.height, 0)) {
-                TestImage img;
-                img.name = pending.name;
-                img.path = pending.path;
-                IMGimage* tmp = imgsGet(m_stash, pending.name.c_str());
-                if (tmp) {
-                    img.w = tmp->width;
-                    img.h = tmp->height;
-                    img.atlasX = tmp->atlasX;
-                    img.atlasY = tmp->atlasY;
-                    imgsDeleteImage(tmp);
-                } else {
-                    img.w = pending.width;
-                    img.h = pending.height;
-                    img.atlasX = -1;
-                    img.atlasY = -1;
-                }
-                m_images.push_back(img);
-                m_redraw = true;
-                glfwPostEmptyEvent();
-            } else {
-                std::cerr << "Failed to add image to stash: " << pending.name << std::endl;
-            }
-            stbi_image_free(pending.pixels);
-        }
-        m_pendingImages.clear();
+		// Necessary for scroll to move the visual
+		// ScrollWidget adjuses the m_pos and clips the visual
+		nvgTranslate(ctx, m_pos.x(), m_pos.y());
 
-        // Check for pending high-res image and create texture
-		if (m_pendingHighResPixels) {
-			printf("m_pendingHighResPixels active...\n");
-
-			if (m_fullscreenHighResImg) {
-				stbi_image_free(m_fullscreenHighResImg->pixels);
-				free(m_fullscreenHighResImg);
-			}
-			if (m_highResImage != 0) {
-				nvgDeleteImage(m_nvg_context, m_highResImage);
-			}
-
-			// Create IMGimage for tracking dimensions
-			m_fullscreenHighResImg = (IMGimage*)malloc(sizeof(IMGimage));
-			if (m_fullscreenHighResImg) {
-				m_fullscreenHighResImg->ctx = m_stash;
-				m_fullscreenHighResImg->atlasX = -1;
-				m_fullscreenHighResImg->atlasY = -1;
-				m_fullscreenHighResImg->width = m_pendingHighResWidth;
-				m_fullscreenHighResImg->height = m_pendingHighResHeight;
-				m_fullscreenHighResImg->pixels = m_pendingHighResPixels;
-				m_fullscreenHighResImg->ownedPixels = 1;
-				m_fullscreenHighResImg->dirty = 0;
-
-				// Create NanoVG texture
-				m_highResImage = nvgCreateImageRGBA(m_nvg_context, m_pendingHighResWidth, m_pendingHighResHeight, 0, m_pendingHighResPixels);
-				if (m_highResImage == 0) {
-					std::cerr << "Failed to create NanoVG image for high-res" << std::endl;
-					stbi_image_free(m_pendingHighResPixels);
-					free(m_fullscreenHighResImg);
-					m_fullscreenHighResImg = nullptr;
-				}
-			} else {
-				stbi_image_free(m_pendingHighResPixels);
-			}
-			m_pendingHighResPixels = nullptr;
-			m_pendingHighResWidth = 0;
-			m_pendingHighResHeight = 0;
-			m_redraw = true;
-			glfwPostEmptyEvent();
-		}
-        
-        pthread_mutex_unlock(&m_highResMutex);
-
-        // Filter the first image if available and not yet filtered
-        if (!m_filteredImg && !m_images.empty()) {
-            m_filteredImg = imgsGet(m_stash, m_images[0].name.c_str());
-            if (m_filteredImg) {
-                imgsFilterGreyscale(m_filteredImg);
-                imgsFilterBlur(m_filteredImg, 20.0f);
-                imgsFilterResize(m_filteredImg, 128, 128);
-                m_redraw = true;
-                glfwPostEmptyEvent();
-            }
+        // Draw title (only in thumbnail mode)
+        if (m_fullscreenImage == -1) {
+            nvgFontSize(ctx, 18.0f);
+            nvgFontFace(ctx, "sans");
+            nvgFillColor(ctx, nvgRGBA(255, 255, 255, 128));
+            nvgText(ctx, 100, 20, "Loaded Images:", nullptr);
         }
 
-        // Begin NanoVG frame
-        nvgBeginFrame(m_nvg_context, (float)width(), (float)height(), 1.0f);
-
-        // Check if atlas size has changed and recreate NanoVG image if needed
-        int curWidth, curHeight;
-        imgsGetAtlasSize(m_stash, &curWidth, &curHeight);
-        if (curWidth != m_atlasWidth || curHeight != m_atlasHeight) {
-            nvgDeleteImage(m_nvg_context, m_atlasImage);
-            m_atlasImage = nvgCreateImageRGBA(m_nvg_context, curWidth, curHeight, 0,
-                                              imgsGetTextureData(m_stash, nullptr, nullptr));
-            m_atlasWidth = curWidth;
-            m_atlasHeight = curHeight;
-            m_redraw = true;
-            glfwPostEmptyEvent();
-        }
-
-        // Update atlas texture if dirty
-        int dirty[4];
-        if (imgsValidateTexture(m_stash, dirty)) {
-            const unsigned char* data = imgsGetTextureData(m_stash, nullptr, nullptr);
-            nvgUpdateImage(m_nvg_context, m_atlasImage, data);
-        }
-
-        float itw = 1.0f / m_atlasWidth;
-        float ith = 1.0f / m_atlasHeight;
+		float itw = 1.0f / m_atlasWidth;
+		float ith = 1.0f / m_atlasHeight;
 
         // Animation progress
         float t = 0.0f;
@@ -471,48 +378,48 @@ public:
             t = t * t * (3.0f - 2.0f * t); // Ease-in-out
             if (!m_isEnteringFullscreen) {
                 t = 1.0f - t;
+            } else {
                 m_redraw = true;
-            }
-            if (now >= m_animationEnd) {
-				if (!m_isEnteringFullscreen) {
-					// Cancel pending fullscreen image
-					pthread_mutex_lock(&m_highResMutex);
-					if (m_threadRunningHighRes) {
-						pthread_cancel(m_loadHighResThread);
-						pthread_join(m_loadHighResThread, nullptr);
-						m_threadRunningHighRes = false;
-					}
-					if (m_pendingHighResPixels) {
-						stbi_image_free(m_pendingHighResPixels);
-						m_pendingHighResPixels = nullptr;
-						m_pendingHighResWidth = 0;
-						m_pendingHighResHeight = 0;
-					}
-					if (m_fullscreenHighResImg) {
-						stbi_image_free(m_fullscreenHighResImg->pixels);
-						free(m_fullscreenHighResImg);
-						m_fullscreenHighResImg = nullptr;
-					}
-					if (m_highResImage != 0) {
-						nvgDeleteImage(m_nvg_context, m_highResImage);
-						m_highResImage = 0;
-					}
-					m_threadRunningHighRes = false;
-					m_fullscreenImage = -1; // Reset here to ensure state is cleared
-					pthread_mutex_unlock(&m_highResMutex);
-					m_redraw = true;
-					glfwPostEmptyEvent();
-					printf("Cancelled high res load\n");
-				}
 			}
+            if (now >= m_animationEnd) {
+                if (!m_isEnteringFullscreen) {
+                    // Cancel pending fullscreen image
+                    pthread_mutex_lock(&m_highResMutex);
+                    if (m_threadRunningHighRes) {
+                        pthread_cancel(m_loadHighResThread);
+                        pthread_join(m_loadHighResThread, nullptr);
+                        m_threadRunningHighRes = false;
+                    }
+                    if (m_pendingHighResPixels) {
+                        stbi_image_free(m_pendingHighResPixels);
+                        m_pendingHighResPixels = nullptr;
+                        m_pendingHighResWidth = 0;
+                        m_pendingHighResHeight = 0;
+                    }
+                    if (m_fullscreenHighResImg) {
+                        stbi_image_free(m_fullscreenHighResImg->pixels);
+                        free(m_fullscreenHighResImg);
+                        m_fullscreenHighResImg = nullptr;
+                    }
+                    if (m_highResImage != 0) {
+                        nvgDeleteImage(m_nvg_context, m_highResImage);
+                        m_highResImage = 0;
+                    }
+                    m_threadRunningHighRes = false;
+                    m_fullscreenImage = -1; // Reset here to ensure state is cleared
+                    pthread_mutex_unlock(&m_highResMutex);
+                    m_redraw = true;
+                    glfwPostEmptyEvent();
+                }
+            }
         }
 
         // Draw background (fade to black in fullscreen)
         m_backgroundOpacity = t;
-        nvgBeginPath(m_nvg_context);
-        nvgRect(m_nvg_context, 0, 0, (float)width(), (float)height());
-        nvgFillColor(m_nvg_context, nvgRGBA(0, 0, 0, (unsigned char)(m_backgroundOpacity * 255)));
-        nvgFill(m_nvg_context);
+        nvgBeginPath(ctx);
+        nvgRect(ctx, 0, 0, (float)width(), (float)height());
+        nvgFillColor(ctx, nvgRGBA(0, 0, 0, (unsigned char)(m_backgroundOpacity * 255)));
+        nvgFill(ctx);
 
         // Draw images or fullscreen image
         float posx = 10;
@@ -537,9 +444,6 @@ public:
             // Fullscreen position
             float full_w, full_h, full_x, full_y;
             bool useHighRes = false;
-
-			if(m_highResImage > 0)
-				printf("Have highResImage\n");
 
             pthread_mutex_lock(&m_highResMutex);
             if ((int)i == m_fullscreenImage && m_highResImage > 0 && t > 0.2f) {
@@ -577,105 +481,196 @@ public:
                 alpha = 1.0f - t; // Fade out non-selected images
             }
 
-            // Draw blue border
-#if 0
-            nvgBeginPath(m_nvg_context);
-            nvgRect(m_nvg_context, draw_x - borderSize, draw_y - borderSize,
-                    draw_w + 2 * borderSize, draw_h + 2 * borderSize);
-            nvgFillColor(m_nvg_context, nvgRGBA(0, 0, 255, (unsigned char)(255 * alpha)));
-            nvgFill(m_nvg_context);
-#endif
-
             // Draw image
-            nvgSave(m_nvg_context);
-            nvgTranslate(m_nvg_context, draw_x, draw_y);
+            nvgSave(ctx);
+            nvgTranslate(ctx, draw_x, draw_y);
 
             if (useHighRes) {
                 // Use high-res image
-                NVGpaint imgPaint = nvgImagePattern(m_nvg_context, 0, 0, draw_w, draw_h, 0.0f, m_highResImage, alpha);
-                nvgBeginPath(m_nvg_context);
-                nvgRect(m_nvg_context, 0, 0, draw_w, draw_h);
-                nvgFillPaint(m_nvg_context, imgPaint);
+                NVGpaint imgPaint = nvgImagePattern(ctx, 0, 0, draw_w, draw_h, 0.0f, m_highResImage, alpha);
+                nvgBeginPath(ctx);
+                nvgRect(ctx, 0, 0, draw_w, draw_h);
+                nvgFillPaint(ctx, imgPaint);
             } else {
                 // Use atlas image
                 float u0 = (img.atlasX + IMGS_PAD) * itw;
                 float v0 = (img.atlasY + IMGS_PAD) * ith;
                 float u1 = (img.atlasX + IMGS_PAD + img.w) * itw;
                 float v1 = (img.atlasY + IMGS_PAD + img.h) * ith;
-                nvgScale(m_nvg_context, draw_w / (u1 - u0) / m_atlasWidth, draw_h / (v1 - v0) / m_atlasHeight);
-                nvgTranslate(m_nvg_context, -u0 * m_atlasWidth, -v0 * m_atlasHeight);
-                NVGpaint imgPaint = nvgImagePattern(m_nvg_context, 0, 0, m_atlasWidth, m_atlasHeight, 0.0f, m_atlasImage, alpha);
-                nvgBeginPath(m_nvg_context);
-                nvgRect(m_nvg_context, u0 * m_atlasWidth, v0 * m_atlasHeight, img.w, img.h);
-                nvgFillPaint(m_nvg_context, imgPaint);
+                nvgScale(ctx, draw_w / (u1 - u0) / m_atlasWidth, draw_h / (v1 - v0) / m_atlasHeight);
+                nvgTranslate(ctx, -u0 * m_atlasWidth, -v0 * m_atlasHeight);
+                NVGpaint imgPaint = nvgImagePattern(ctx, 0, 0, m_atlasWidth, m_atlasHeight, 0.0f, m_atlasImage, alpha);
+                nvgBeginPath(ctx);
+                nvgRect(ctx, u0 * m_atlasWidth, v0 * m_atlasHeight, img.w, img.h);
+                nvgFillPaint(ctx, imgPaint);
             }
 
-            nvgFill(m_nvg_context);
-            nvgRestore(m_nvg_context);
+            nvgFill(ctx);
+            nvgRestore(ctx);
 
             // Draw filename below the image (only in thumbnail mode)
             if ((int)i != m_fullscreenImage || t < 0.5f) {
-                nvgFontSize(m_nvg_context, 14.0f);
-                nvgFontFace(m_nvg_context, "sans");
-                nvgFillColor(m_nvg_context, nvgRGBA(255, 255, 255, (unsigned char)(255 * alpha)));
-                nvgTextAlign(m_nvg_context, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
-                nvgText(m_nvg_context, draw_x + draw_w / 2.0f, draw_y + draw_h + borderSize, img.name.c_str(), nullptr);
+                nvgFontSize(ctx, 14.0f);
+                nvgFontFace(ctx, "sans");
+                nvgFillColor(ctx, nvgRGBA(255, 255, 255, (unsigned char)(255 * alpha)));
+                nvgTextAlign(ctx, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+                nvgText(ctx, draw_x + draw_w / 2.0f, draw_y + draw_h + borderSize, img.name.c_str(), nullptr);
             }
 
             posx += img.w + 2 * borderSize + padding;
         }
 
         // Draw filtered image separately with a label
+		/*
         if (m_filteredImg && m_fullscreenImage == -1) {
             if (posx + m_filteredImg->width + 2 * borderSize + padding > width() - 10) {
                 posx = 10;
                 posy += maxHeightInRow + textHeight + padding;
             }
 
-            nvgBeginPath(m_nvg_context);
-            nvgRect(m_nvg_context, posx - borderSize, posy - borderSize,
+            nvgBeginPath(ctx);
+            nvgRect(ctx, posx - borderSize, posy - borderSize,
                     m_filteredImg->width + 2 * borderSize, m_filteredImg->height + 2 * borderSize);
-            nvgFillColor(m_nvg_context, nvgRGBA(255, 0, 255, 255));
-            nvgFill(m_nvg_context);
+            nvgFillColor(ctx, nvgRGBA(255, 0, 255, 255));
+            nvgFill(ctx);
 
             float u0 = (m_filteredImg->atlasX + IMGS_PAD) * itw;
             float v0 = (m_filteredImg->atlasY + IMGS_PAD) * ith;
             float u1 = (m_filteredImg->atlasX + IMGS_PAD + m_filteredImg->width) * itw;
             float v1 = (m_filteredImg->atlasY + IMGS_PAD + m_filteredImg->height) * ith;
 
-            nvgSave(m_nvg_context);
-            nvgTranslate(m_nvg_context, posx, posy);
-            nvgScale(m_nvg_context, (float)m_filteredImg->width / (u1 - u0) / m_atlasWidth,
+            nvgSave(ctx);
+            nvgTranslate(ctx, posx, posy);
+            nvgScale(ctx, (float)m_filteredImg->width / (u1 - u0) / m_atlasWidth,
                      (float)m_filteredImg->height / (v1 - v0) / m_atlasHeight);
-            nvgTranslate(m_nvg_context, -u0 * m_atlasWidth, -v0 * m_atlasHeight);
+            nvgTranslate(ctx, -u0 * m_atlasWidth, -v0 * m_atlasHeight);
 
-            NVGpaint imgPaint = nvgImagePattern(m_nvg_context, 0, 0, m_atlasWidth, m_atlasHeight, 0.0f, m_atlasImage, 1.0f);
-            nvgBeginPath(m_nvg_context);
-            nvgRect(m_nvg_context, u0 * m_atlasWidth, v0 * m_atlasHeight, m_filteredImg->width, m_filteredImg->height);
-            nvgFillPaint(m_nvg_context, imgPaint);
-            nvgFill(m_nvg_context);
+            NVGpaint imgPaint = nvgImagePattern(ctx, 0, 0, m_atlasWidth, m_atlasHeight, 0.0f, m_atlasImage, 1.0f);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, u0 * m_atlasWidth, v0 * m_atlasHeight, m_filteredImg->width, m_filteredImg->height);
+            nvgFillPaint(ctx, imgPaint);
+            nvgFill(ctx);
 
-            nvgRestore(m_nvg_context);
+            nvgRestore(ctx);
 
-            nvgFontSize(m_nvg_context, 14.0f);
-            nvgFontFace(m_nvg_context, "sans");
-            nvgFillColor(m_nvg_context, nvgRGBA(255, 255, 255, 255));
-            nvgTextAlign(m_nvg_context, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+            nvgFontSize(ctx, 14.0f);
+            nvgFontFace(ctx, "sans");
+            nvgFillColor(ctx, nvgRGBA(255, 255, 255, 255));
+            nvgTextAlign(ctx, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
             std::string filteredName = m_images[0].name + " (filtered)";
-            nvgText(m_nvg_context, posx + m_filteredImg->width / 2.0f, posy + m_filteredImg->height + borderSize,
+            nvgText(ctx, posx + m_filteredImg->width / 2.0f, posy + m_filteredImg->height + borderSize,
                     filteredName.c_str(), nullptr);
         }
+		*/
 
-        // Draw title (only in thumbnail mode)
-        if (m_fullscreenImage == -1) {
-            nvgFontSize(m_nvg_context, 18.0f);
-            nvgFontFace(m_nvg_context, "sans");
-            nvgFillColor(m_nvg_context, nvgRGBA(255, 255, 255, 128));
-            nvgText(m_nvg_context, 100, 20, "Loaded Images:", nullptr);
+		// Process pending images
+        pthread_mutex_lock(&m_highResMutex);
+        for (auto& pending : m_pendingImages) {
+			m_redraw = true;
+            if (imgsAddPixels(m_stash, pending.name.c_str(), pending.pixels, pending.width, pending.height, 0)) {
+                TestImage img;
+                img.name = pending.name;
+                img.path = pending.path;
+                IMGimage* tmp = imgsGet(m_stash, pending.name.c_str());
+                if (tmp) {
+                    img.w = tmp->width;
+                    img.h = tmp->height;
+                    img.atlasX = tmp->atlasX;
+                    img.atlasY = tmp->atlasY;
+                    imgsDeleteImage(tmp);
+                } else {
+                    img.w = pending.width;
+                    img.h = pending.height;
+                    img.atlasX = -1;
+                    img.atlasY = -1;
+                }
+                m_images.push_back(img);
+                glfwPostEmptyEvent();
+				// **MUST** run this async, as perform_layout in a draw will result in recursive loop 
+				async([this] { screen()->perform_layout(); });
+            } else {
+                std::cerr << "Failed to add image to stash: " << pending.name << std::endl;
+            }
+            stbi_image_free(pending.pixels);
+        }
+        m_pendingImages.clear();
+
+        // Check for pending high-res image and create texture
+        if (m_pendingHighResPixels) {
+            if (m_fullscreenHighResImg) {
+                stbi_image_free(m_fullscreenHighResImg->pixels);
+                free(m_fullscreenHighResImg);
+            }
+            if (m_highResImage != 0) {
+                nvgDeleteImage(m_nvg_context, m_highResImage);
+            }
+
+            // Create IMGimage for tracking dimensions
+            m_fullscreenHighResImg = (IMGimage*)malloc(sizeof(IMGimage));
+            if (m_fullscreenHighResImg) {
+                m_fullscreenHighResImg->ctx = m_stash;
+                m_fullscreenHighResImg->atlasX = -1;
+                m_fullscreenHighResImg->atlasY = -1;
+                m_fullscreenHighResImg->width = m_pendingHighResWidth;
+                m_fullscreenHighResImg->height = m_pendingHighResHeight;
+                m_fullscreenHighResImg->pixels = m_pendingHighResPixels;
+                m_fullscreenHighResImg->ownedPixels = 1;
+                m_fullscreenHighResImg->dirty = 0;
+
+                // Create NanoVG texture
+                m_highResImage = nvgCreateImageRGBA(m_nvg_context, m_pendingHighResWidth, m_pendingHighResHeight, 0, m_pendingHighResPixels);
+                if (m_highResImage == 0) {
+                    std::cerr << "Failed to create NanoVG image for high-res" << std::endl;
+                    stbi_image_free(m_pendingHighResPixels);
+                    free(m_fullscreenHighResImg);
+                    m_fullscreenHighResImg = nullptr;
+                }
+            } else {
+                stbi_image_free(m_pendingHighResPixels);
+            }
+            m_pendingHighResPixels = nullptr;
+            m_pendingHighResWidth = 0;
+            m_pendingHighResHeight = 0;
+            m_redraw = true;
+            glfwPostEmptyEvent();
+        }
+        
+        pthread_mutex_unlock(&m_highResMutex);
+
+        // Filter the first image if available and not yet filtered
+        if (!m_filteredImg && !m_images.empty()) {
+            m_filteredImg = imgsGet(m_stash, m_images[0].name.c_str());
+            if (m_filteredImg) {
+                imgsFilterGreyscale(m_filteredImg);
+                imgsFilterBlur(m_filteredImg, 20.0f);
+                imgsFilterResize(m_filteredImg, 128, 128);
+                m_redraw = true;
+                glfwPostEmptyEvent();
+            }
         }
 
-        nvgEndFrame(m_nvg_context);
-    }
+        // Check if atlas size has changed and recreate NanoVG image if needed
+        int curWidth, curHeight;
+        imgsGetAtlasSize(m_stash, &curWidth, &curHeight);
+        if (curWidth != m_atlasWidth || curHeight != m_atlasHeight) {
+            nvgDeleteImage(m_nvg_context, m_atlasImage);
+            m_atlasImage = nvgCreateImageRGBA(m_nvg_context, curWidth, curHeight, 0,
+                                              imgsGetTextureData(m_stash, nullptr, nullptr));
+            m_atlasWidth = curWidth;
+            m_atlasHeight = curHeight;
+            m_redraw = true;
+            glfwPostEmptyEvent();
+        }
+
+        // Update atlas texture if dirty
+        int dirty[4];
+        if (imgsValidateTexture(m_stash, dirty)) {
+            const unsigned char* data = imgsGetTextureData(m_stash, nullptr, nullptr);
+            nvgUpdateImage(m_nvg_context, m_atlasImage, data);
+        }
+		if( m_redraw )
+    		set_needs_redraw();
+    } // draw()
 
 private:
     struct TestImage {
@@ -685,6 +680,7 @@ private:
         int atlasX, atlasY;
     };
 
+    NVGcontext* m_nvg_context = nullptr;
     std::vector<TestImage> m_images;
     std::vector<std::string> m_imagePaths;
     std::vector<PendingImage> m_pendingImages;
@@ -709,11 +705,30 @@ private:
     bool m_threadRunning = false;
     bool m_threadRunningHighRes = false;
     pthread_mutex_t m_highResMutex;
+
+    void set_needs_redraw() {
+		printf("redraw requested\n");
+        auto screen = dynamic_cast<Screen*>(m_parent->screen());
+        if (screen) {
+			screen->perform_layout();
+            screen->redraw();
+        }
+    }
 };
 
 int main(int argc, char** argv) {
     try {
         nanogui::init();
+
+        // Create a screen
+        ref<Screen> screen = new Screen(Vector2i(1200, 900), "NanoGUI ImageStash Test");
+
+        // Create a window
+        /*ref<Window> window = new Window(screen, "Image Stash");
+        window->set_position(Vector2i(15, 15));
+		window->set_size( {600,600} );
+		window->set_resizable( true );
+        window->set_layout(new GroupLayout());*/
 
         // Collect image paths from command line
         std::vector<std::string> imagePaths;
@@ -721,11 +736,36 @@ int main(int argc, char** argv) {
             imagePaths.emplace_back(argv[i]);
         }
 
-        // Create and show the screen
-        ref<ImageStashScreen> screen = new ImageStashScreen(imagePaths);
+        Window* CtrConsole_TopWindow = new Window(screen, "Image Panel", true);
+        CtrConsole_TopWindow->set_position(Vector2i(70, 40));
+        CtrConsole_TopWindow->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill));
+        CtrConsole_TopWindow->set_visible(true);
+        CtrConsole_TopWindow->set_size( Vector2i(500,600) );
+
+        ScrollPanel* ScrollWidget = new ScrollPanel(CtrConsole_TopWindow);
+        ScrollWidget->set_scroll_type(ScrollPanel::ScrollTypes::Vertical);
+        ScrollWidget->DebugName = "Top";
+        //ScrollWidget->set_layout(new BoxLayout(Orientation::Vertical, Alignment::Fill, 15));
+
+		//Widget* w = new Widget(ScrollWidget);
+        //w->set_layout(new GroupLayout()); //BoxLayout(Orientation::Vertical, Alignment::Fill, 15));
+
+		//new Label(w, "I have a little kitty\n", "sans", 16);
+
+        // Create the ImageStashWidget
+        ref<ImageStashWidget> widget = new ImageStashWidget(ScrollWidget, imagePaths);
+        //w->set_layout(new GroupLayout()); //BoxLayout(Orientation::Vertical, Alignment::Fill, 15));
+        //w->set_size(Vector2i(440, 1669)); // Fit within window
+
+		//new Label(w, "Here little kitty\n", "sans", 16);
+
+        // Center the window and perform layout
         screen->set_visible(true);
         screen->perform_layout();
-        nanogui::mainloop(1/30.f * 1000);
+        //window->center();
+
+        // Run the main loop
+        nanogui::mainloop(); // (1/60.f * 1000, false);
 
         nanogui::shutdown();
     } catch (const std::runtime_error& e) {
