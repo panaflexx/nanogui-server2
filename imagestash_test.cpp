@@ -710,7 +710,6 @@ private:
     pthread_mutex_t m_highResMutex;
 
     void set_needs_redraw() {
-		printf("redraw requested\n");
         auto screen = dynamic_cast<Screen*>(m_parent->screen());
         if (screen) {
 			screen->perform_layout();

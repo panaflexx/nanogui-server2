@@ -51,7 +51,7 @@ public:
         // LEFT PANEL: Customer List
 		ScrollPanel *leftPanel = new ScrollPanel(split);
 		leftPanel->set_scroll_type(ScrollPanel::ScrollTypes::Vertical);
-		leftPanel->set_min_width(300);
+		//leftPanel->set_min_width(100);
 
 		// CREATE A SINGLE CONTAINER WIDGET FOR THE SCROLLPANEL
 		Widget *leftContainer = new Widget(leftPanel);  // ScrollPanel has ONE child
@@ -72,8 +72,9 @@ public:
 
 		for (const auto& customer : customers) {
 			Widget *item = new Widget(leftContainer);  // Add to CONTAINER, not ScrollPanel
-			item->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Fill, 5, 5));
-			item->set_min_size( Vector2i(140, 30) );
+			item->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Fill, 0, 5));
+			item->set_size( Vector2i(50, 30) );
+			item->set_min_height(14);
 			
 			// Add customer icon
 			Label *icon = new Label(item, "👤", "emoji", 14);
@@ -81,9 +82,10 @@ public:
 			
 			// Add customer name
 			Label *name = new Label(item, customer, "sans", 13);
+			name->set_width(100);
 		}
 		Widget *padContainer = new Widget(leftContainer);
-		padContainer->set_min_width( 100 );
+		padContainer->set_min_width( 10 );
 
 		// RIGHT PANEL: Existing form content
 		ScrollPanel *rightPanel = new ScrollPanel(split);

@@ -19,6 +19,11 @@
 #include <nanogui/menu.h>
 #include <nanogui/popupbutton.h>
 #include <nanogui/metal.h>
+#include <nanogui/textbox.h>
+#include <nanogui/textarea.h>
+#include <nanogui/checkbox.h>
+#include <nanogui/combobox.h>
+#include <nanogui/scrollpanel.h>
 #include <map>
 #include <iostream>
 
@@ -662,6 +667,60 @@ void Screen::draw_widgets() {
 
     draw(m_nvg_context);
 
+	// Draw light cyan border around focused widget
+    if (!m_focus_path.empty() && m_focus_path.front() && m_focus_path.back()->visible()) {
+        Widget* focused_widget = m_focus_path.front();
+        Vector2i pos = focused_widget->absolute_position();
+        Vector2i size = focused_widget->size();
+
+        // Don't draw focus on windows
+        if (focused_widget->enabled() && dynamic_cast<Window*>(focused_widget) == nullptr) {
+            // Check if the focused widget is inside a VScrollPanel
+            Widget* parent = focused_widget->parent();
+            ScrollPanel* scroll_panel = nullptr;
+            while (parent && !scroll_panel) {
+                scroll_panel = dynamic_cast<ScrollPanel*>(parent);
+                parent = parent->parent();
+            }
+
+            if (scroll_panel) {
+                // Get the scroll panel's absolute position and size
+                Vector2i panel_pos = scroll_panel->absolute_position();
+                Vector2i panel_size = scroll_panel->size();
+
+                // Compute the visible bounds of the focused widget within the scroll panel
+                int x_min = std::max(pos.x(), panel_pos.x());
+                int y_min = std::max(pos.y(), panel_pos.y());
+                int x_max = std::min(pos.x() + size.x(), panel_pos.x() + panel_size.x());
+                int y_max = std::min(pos.y() + size.y(), panel_pos.y() + panel_size.y());
+
+                // Adjust position and size for the focus border
+                pos.x() = x_min - 2;
+                pos.y() = y_min - 2;
+                size.x() = x_max - x_min + 4;
+                size.y() = y_max - y_min + 4;
+
+                // Only draw if the adjusted size is positive
+                if (size.x() > 0 && size.y() > 0) {
+                    nvgBeginPath(m_nvg_context);
+                    nvgRect(m_nvg_context, pos.x(), pos.y(), size.x(), size.y());
+                    nvgStrokeColor(m_nvg_context, nvgRGBA(0, 255, 255, 128)); // Light cyan
+                    nvgStrokeWidth(m_nvg_context, 2.0f);
+                    nvgStroke(m_nvg_context);
+                }
+            } else {
+                // Draw the border as usual if not in a scroll panel
+                nvgBeginPath(m_nvg_context);
+                nvgRect(m_nvg_context, pos.x() - 2, pos.y() - 2, size.x() + 4, size.y() + 4);
+                nvgStrokeColor(m_nvg_context, nvgRGBA(0, 255, 255, 128)); // Light cyan
+                nvgStrokeWidth(m_nvg_context, 2.0f);
+                nvgStroke(m_nvg_context);
+            }
+        }
+    }
+		
+
+
     double elapsed = glfwGetTime() - m_last_interaction;
 
     if (elapsed > 0.5f) {
@@ -724,11 +783,119 @@ void Screen::draw_widgets() {
     nvgEndFrame(m_nvg_context);
 }
 
-bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
+/*bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
     if (m_focus_path.size() > 0) {
         for (int Cnt = m_focus_path.size() - 2; Cnt >= 0; Cnt--)// Don't use iterators because we might change focus during key event
             if (m_focus_path[Cnt]->focused() && m_focus_path[Cnt]->keyboard_event(key, scancode, action, modifiers))
                 return true;
+    }
+
+    return false;
+}*/
+
+// Helper function to collect focusable widgets (TextBox, CheckBox, ComboBox, Dropdown)
+void Screen::collect_focusable_widgets(Widget* root, std::vector<Widget*>& focusable, Widget* stop_at) {
+    if (!root || !root->visible() || !root->enabled()) return;
+
+    // Check if the widget is focusable
+    if (dynamic_cast<TextBox*>(root) || dynamic_cast<CheckBox*>(root) ||
+        dynamic_cast<ComboBox*>(root) || dynamic_cast<Dropdown*>(root) ||
+		dynamic_cast<TextArea*>(root) || dynamic_cast<Button*>(root)) {
+        focusable.push_back(root);
+    }
+
+    // Stop recursion if we hit the stop_at widget (e.g., a different window)
+    if (root == stop_at) return;
+
+    // Recurse through children
+    for (Widget* child : root->children()) {
+        collect_focusable_widgets(child, focusable, stop_at);
+    }
+}
+
+bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
+    if (m_focus_path.size() > 0) {
+        // First, try to handle the key event in the current focus path
+        for (int Cnt = m_focus_path.size() - 2; Cnt >= 0; Cnt--) {
+            if (m_focus_path[Cnt]->focused() && m_focus_path[Cnt]->keyboard_event(key, scancode, action, modifiers))
+                return true;
+        }
+
+        // Handle Tab key for focus navigation
+        if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+            // Find the current window or popup in the focus path
+            Widget* current_container = nullptr;
+            for (auto it = m_focus_path.rbegin(); it != m_focus_path.rend(); ++it) {
+                if (dynamic_cast<Window*>(*it) || dynamic_cast<Popup*>(*it)) {
+                    current_container = *it;
+                    break;
+                }
+            }
+
+            // If no container found, use the screen itself
+            if (!current_container) {
+                current_container = this;
+            }
+
+            // Collect all focusable widgets in the current container
+            std::vector<Widget*> focusable_widgets;
+            collect_focusable_widgets(current_container, focusable_widgets, nullptr);
+            printf("Found %lu focusable widgets in container: %s\n", focusable_widgets.size(), current_container->id().c_str());
+
+            // If no focusable widgets, return false
+            if (focusable_widgets.empty()) {
+                printf("No focusable widgets found\n");
+                return false;
+            }
+
+            // Find the next or previous focusable widget based on Shift modifier
+            Widget* current_focused = m_focus_path.empty() ? nullptr : m_focus_path.front();
+            Widget* next_focused = nullptr;
+            bool is_shift_tab = modifiers & GLFW_MOD_SHIFT;
+
+            if (!current_focused) {
+                // No current focus, select the first (Tab) or last (Shift+Tab) focusable widget
+                next_focused = is_shift_tab ? focusable_widgets.back() : focusable_widgets.front();
+                printf("No current focus, selecting %s widget: %s\n", is_shift_tab ? "last" : "first", next_focused->id().c_str());
+            } else {
+                printf("Current focused widget: %s\n", current_focused->id().c_str());
+                // Find the current focused widget in the list
+                auto it = std::find(focusable_widgets.begin(), focusable_widgets.end(), current_focused);
+                if (it != focusable_widgets.end()) {
+                    if (is_shift_tab) {
+                        // Shift+Tab: Move to the previous widget, wrapping to the last if at the beginning
+                        if (it != focusable_widgets.begin()) {
+                            next_focused = *(it - 1);
+                            printf("Found previous widget: %s\n", next_focused->id().c_str());
+                        } else {
+                            next_focused = focusable_widgets.back();
+                            printf("At beginning, wrapping to last widget: %s\n", next_focused->id().c_str());
+                        }
+                    } else {
+                        // Tab: Move to the next widget, wrapping to the first if at the end
+                        if (it + 1 != focusable_widgets.end()) {
+                            next_focused = *(it + 1);
+                            printf("Found next widget: %s\n", next_focused->id().c_str());
+                        } else {
+                            next_focused = focusable_widgets.front();
+                            printf("At end, wrapping to first widget: %s\n", next_focused->id().c_str());
+                        }
+                    }
+                } else {
+                    // Current focused widget not found (e.g., not focusable), select first (Tab) or last (Shift+Tab)
+                    next_focused = is_shift_tab ? focusable_widgets.back() : focusable_widgets.front();
+                    printf("Current widget not focusable, selecting %s widget: %s\n", is_shift_tab ? "last" : "first", next_focused->id().c_str());
+                }
+            }
+
+            // Update focus to the next or previous widget
+            if (next_focused) {
+                update_focus(next_focused);
+                m_redraw = true;
+                printf("Focus set to: %s\n", next_focused->id().c_str());
+                return true;
+            }
+        }
     }
 
     return false;

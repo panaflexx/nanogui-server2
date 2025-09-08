@@ -54,10 +54,11 @@ bool Button::mouse_enter_event(const Vector2i& p, bool enter) {
     return true;
 }
 
+/*
 bool Button::mouse_button_event(const Vector2i& p, int button, bool down, int modifiers) {
     Widget::mouse_button_event(p, button, down, modifiers);
-    /* Temporarily increase the reference count of the button in case the
-       button causes the parent window to be destructed */
+    // Temporarily increase the reference count of the button in case the
+    //  button causes the parent window to be destructed 
     ref<Button> self = this;
 
     if (m_enabled == 1 &&
@@ -113,6 +114,106 @@ bool Button::mouse_button_event(const Vector2i& p, int button, bool down, int mo
 
         return true;
     }
+    return false;
+}
+
+bool Button::keyboard_event(int key, int scancode, int action, int modifiers) {
+        if (Screen().keyboard_event(key, scancode, action, modifiers))
+            return true;
+        //FIXME: Add pushed on spacebar, reset on escape.
+        return false;
+}
+*/
+bool Button::handle_event(bool active, bool contains_point) {
+    bool pushed_backup = m_pushed;
+    
+    if (active) {
+        if (m_flags & RadioButton) {
+            if (m_button_group.empty()) {
+                for (auto widget : parent()->children()) {
+                    Button* b = dynamic_cast<Button*>(widget);
+                    if (b != this && b && (b->flags() & RadioButton) && b->m_pushed) {
+                        b->set_pushed(false);
+                        if (b->m_change_callback)
+                            b->m_change_callback(false);
+                    }
+                }
+            }
+            else {
+                for (auto b : m_button_group) {
+                    if (b != this && (b->flags() & RadioButton) && b->m_pushed) {
+                        b->set_pushed(false);
+                        if (b->m_change_callback)
+                            b->m_change_callback(false);
+                    }
+                }
+            }
+        }
+        if (m_flags & PopupButton) {
+            for (auto widget : parent()->children()) {
+                Button* b = dynamic_cast<Button*>(widget);
+                if (b != this && b && (b->flags() & PopupButton) && b->m_pushed) {
+                    b->set_pushed(false);
+                    if (b->m_change_callback)
+                        b->m_change_callback(false);
+                }
+            }
+            dynamic_cast<nanogui::PopupButton*>(this)->popup()->request_focus();
+        }
+        if (m_flags & ToggleButton)
+            set_pushed(!m_pushed);
+        else
+            set_pushed(true);
+    }
+    else if (m_pushed || (m_flags & MenuButton)) {
+        if (contains_point && m_callback)
+            m_callback();
+        if (m_flags & NormalButton)
+            set_pushed(false);
+    }
+    
+    if (pushed_backup != m_pushed && m_change_callback)
+        m_change_callback(m_pushed);
+        
+    return true;
+}
+
+bool Button::mouse_button_event(const Vector2i& p, int button, bool down, int modifiers) {
+    Widget::mouse_button_event(p, button, down, modifiers);
+    ref<Button> self = this;
+
+    if (m_enabled == 1 &&
+        ((button == GLFW_MOUSE_BUTTON_1 && !(m_flags & MenuButton)) ||
+            (button == GLFW_MOUSE_BUTTON_2 && (m_flags & MenuButton)))) {
+        return handle_event(down, contains(p));
+    }
+    return false;
+}
+
+bool Button::keyboard_event(int key, int scancode, int action, int modifiers) {
+    if (Widget::keyboard_event(key, scancode, action, modifiers))
+        return true;
+
+    if (!m_enabled)
+        return false;
+
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        if (key == GLFW_KEY_ENTER || key == GLFW_KEY_SPACE) {
+            return handle_event(true, true);
+        }
+        else if (key == GLFW_KEY_ESCAPE) {
+            if (m_pushed && (m_flags & (PopupButton | MenuButton))) {
+                set_pushed(false);
+                if (m_change_callback)
+                    m_change_callback(false);
+                return true;
+            }
+        }
+    }
+    else if (action == GLFW_RELEASE && (key == GLFW_KEY_ENTER || key == GLFW_KEY_SPACE)) {
+        return handle_event(false, true);
+    }
+
     return false;
 }
 

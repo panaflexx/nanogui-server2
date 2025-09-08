@@ -452,7 +452,7 @@ bool TextBox::keyboard_event(int key, int /* scancode */, int action, int modifi
                     if (m_cursor_pos < (int) m_value_temp.length())
                         m_value_temp.erase(m_value_temp.begin() + m_cursor_pos);
                 }
-            } else if (key == GLFW_KEY_ENTER) {
+            } else if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER) {
                 if (!m_committed)
                     focus_event(false);
             } else if (key == GLFW_KEY_ESCAPE) {
@@ -468,7 +468,10 @@ bool TextBox::keyboard_event(int key, int /* scancode */, int action, int modifi
             } else if (key == GLFW_KEY_V && modifiers == SYSTEM_COMMAND_MOD) {
                 delete_selection();
                 paste_from_clipboard();
-            }
+            } else if (key == GLFW_KEY_TAB) {
+				// Allow parent to move focus
+				return false;
+			}
 
             m_valid_format =
                 (m_value_temp == "") || check_format(m_value_temp, m_format);

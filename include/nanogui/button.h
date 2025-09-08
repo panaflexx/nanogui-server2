@@ -114,12 +114,14 @@ NAMESPACE_BEGIN(nanogui)
 
         /// The preferred size of this Button.
         virtual Vector2i preferred_size(NVGcontext* ctx) const override;
-        /// The callback that is called when any type of mouse button event is issued to this Button.
+        /// The callback that is called when any type of mouse or keyboard event is issued to this Button.
         virtual bool mouse_enter_event(const Vector2i& p, bool enter) override;
         virtual bool mouse_button_event(const Vector2i& p, int button, bool down, int modifiers) override;
+		virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override;
         /// Responsible for drawing the Button.
         virtual void draw(NVGcontext* ctx) override;
     protected:
+		bool handle_event(bool active, bool contains_point);
         /// The caption of this Button.
         std::string m_caption;
 

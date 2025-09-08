@@ -166,6 +166,9 @@ public:
         return false; /* To be overridden */
     }
 
+	// Gets focuable widgets for handling tabbing around a form.
+	void collect_focusable_widgets(Widget* root, std::vector<Widget*>& focusable, Widget* stop_at);
+
     /// Default keyboard event handler
     virtual bool keyboard_event(int key, int scancode, int action, int modifiers);
 
