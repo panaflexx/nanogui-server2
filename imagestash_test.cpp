@@ -2,6 +2,7 @@
 #include <nanogui/opengl.h>
 #include <nanogui/screen.h>
 #include <nanogui/window.h>
+#include <nanogui/scrollpanel.h>
 #include <string>
 #include <vector>
 #include <stdexcept>
@@ -312,6 +313,8 @@ public:
             const float textHeight = 20.0f;
             const float padding = 10.0f;
 
+            Vector2i content_p = p + Vector2i(0, -m_pos.y());
+
             for (size_t i = 0; i < m_images.size(); ++i) {
                 const auto& img = m_images[i];
                 if (img.atlasX < 0 || img.atlasY < 0) continue;
@@ -325,8 +328,8 @@ public:
                 maxHeightInRow = std::max(maxHeightInRow, (float)img.h + 2 * borderSize);
 
                 // Check if click is within image bounds (including border)
-                if (p.x() >= posx - borderSize && p.x() <= posx + img.w + borderSize &&
-                    p.y() >= posy - borderSize && p.y() <= posy + img.h + borderSize) {
+                if (content_p.x() >= posx - borderSize && content_p.x() <= posx + img.w + borderSize &&
+                    content_p.y() >= posy - borderSize && content_p.y() <= posy + img.h + borderSize) {
                     m_fullscreenImage = (int)i;
                     m_animationStart = std::chrono::steady_clock::now();
                     m_animationEnd = m_animationStart + std::chrono::milliseconds(400);
@@ -354,7 +357,7 @@ public:
 		m_redraw = false;
 
 		// Necessary for scroll to move the visual
-		// ScrollWidget adjuses the m_pos and clips the visual
+		// ScrollWidget adjusts the m_pos and clips the visual
 		nvgTranslate(ctx, m_pos.x(), m_pos.y());
 
         // Draw title (only in thumbnail mode)
@@ -417,7 +420,7 @@ public:
         // Draw background (fade to black in fullscreen)
         m_backgroundOpacity = t;
         nvgBeginPath(ctx);
-        nvgRect(ctx, 0, 0, (float)width(), (float)height());
+        nvgRect(ctx, -m_pos.x(), -m_pos.y(), parent()->width(), parent()->height());
         nvgFillColor(ctx, nvgRGBA(0, 0, 0, (unsigned char)(m_backgroundOpacity * 255)));
         nvgFill(ctx);
 
@@ -450,17 +453,17 @@ public:
                 useHighRes = true;
                 full_w = m_fullscreenHighResImg->width;
                 full_h = m_fullscreenHighResImg->height;
-                float scale = std::min((float)width() / full_w, (float)height() / full_h) * 0.9f;
+                float scale = std::min((float)parent()->width() / full_w, (float)parent()->height() / full_h) * 0.9f;
                 full_w *= scale;
                 full_h *= scale;
-                full_x = (width() - full_w) / 2.0f;
-                full_y = (height() - full_h) / 2.0f;
+                full_x = (parent()->width() - full_w) / 2.0f - m_pos.x();
+                full_y = (parent()->height() - full_h) / 2.0f - m_pos.y();
             } else {
                 float scale = std::min((float)width() / img.w, (float)height() / img.h) * 0.9f;
                 full_w = img.w * scale;
                 full_h = img.h * scale;
-                full_x = (width() - full_w) / 2.0f;
-                full_y = (height() - full_h) / 2.0f;
+                full_x = (width() - full_w) / 2.0f - m_pos.x();
+                full_y = (height() - full_h) / 2.0f - m_pos.y();
             }
             pthread_mutex_unlock(&m_highResMutex);
 
