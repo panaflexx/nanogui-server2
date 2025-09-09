@@ -843,6 +843,35 @@ bool Dropdown::mouse_button_event(const Vector2i &p, int button, bool down, int 
     return ret;
 }
 
+bool Dropdown::keyboard_event(int key, int scancode, int action, int modifiers) {
+    // Only act on key press, not key release
+    if (!m_enabled || action != GLFW_PRESS)
+        return false;
+
+    if (!m_popup->visible() && (key == GLFW_KEY_SPACE || key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER)) {
+        // Open the popup menu on Space or Enter (if not already visible)
+        update_popup_geometry();
+        m_popup->set_visible(true);
+        m_popup->request_focus();
+        set_pushed(true);
+        return true;
+    }
+    if (m_popup->visible() && key == GLFW_KEY_ESCAPE) {
+        // Close the menu on Escape
+        m_popup->set_visible(false);
+        m_popup->set_highlighted_index(-1);
+        m_popup->parent_window()->request_focus();
+        set_pushed(false);
+        return true;
+    }
+    // Optionally, pass event to popup for further navigation while open
+    if (m_popup->visible())
+        return m_popup->keyboard_event(key, scancode, action, modifiers);
+
+    return MenuItem::keyboard_event(key, scancode, action, modifiers);
+}
+
+
 void Dropdown::draw(NVGcontext *ctx)
 {
     if (!m_popup->visible())

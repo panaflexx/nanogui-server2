@@ -198,6 +198,7 @@ public:
     virtual void     draw(NVGcontext *ctx) override;
     virtual bool     mouse_enter_event(const Vector2i &p, bool enter) override;
     virtual bool     mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) override;
+	virtual bool     keyboard_event(int key, int scancode, int action, int modifiers) override;
 
 protected:
     void update_popup_geometry() const;
