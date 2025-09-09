@@ -285,6 +285,21 @@ public:
     /// Draw the widget (and all child widgets)
     virtual void draw(NVGcontext* ctx);
 
+	// Animation
+	enum class AnimationType {
+        None,
+        Sproing,   // Bounce/scale effect (expands then contracts with decay)
+        Warble,    // Oscillating/wavy scale effect
+        Rotate,    // Smooth rotation effect
+        SlideOpen, // Slide in (e.g., from left, animating translate/alpha)
+        SlideClose // Slide out (e.g., to left, then hide)
+        // Add more types here as needed, e.g., Fade, Pulse
+    };
+
+	void set_animation_type(AnimationType type) { m_animation_type = type; }
+    void set_animation_duration(double duration) { m_animation_duration = duration; }
+    void start_animation(AnimationType type = AnimationType::None);
+
 protected:
     /// Free all resources used by the widget and any children
     virtual ~Widget();
@@ -301,7 +316,6 @@ protected:
      */
     float icon_scale() const { return m_theme->m_icon_scale * m_icon_extra_scale; }
 
-protected:
     Widget* m_parent;
     ref<Theme> m_theme;
     ref<Layout> m_layout;
@@ -365,6 +379,14 @@ protected:
      */
     float m_icon_extra_scale;
     Cursor m_cursor;
+
+	// Animation support
+	AnimationType m_animation_type = AnimationType::None;
+    double m_animation_start = -1.0;
+    double m_animation_duration = 0.5;  // Default duration in seconds
+	virtual void apply_animation_transform(NVGcontext* ctx, float progress);
+    virtual void end_animation();
+	std::pair<bool, float> get_animation_progress();
 };
 
 NAMESPACE_END(nanogui)

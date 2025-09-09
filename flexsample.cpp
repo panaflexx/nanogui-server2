@@ -639,8 +639,13 @@ private:
         
         Button *clearButton = new Button(buttonContainer, "🔄 Clear Form");
         clearButton->set_fixed_width(150);
-        clearButton->set_callback([]() { 
+		clearButton->set_id("CLEAR");
+        clearButton->set_callback([clearButton]() { 
             std::cout << "Form cleared!" << std::endl; 
+			clearButton->set_animation_type(Widget::AnimationType::SlideOpen);
+			clearButton->set_animation_duration(1.0);
+			clearButton->set_visible(true);
+			clearButton->start_animation();
         });
         buttonLayout->set_flex_item(clearButton, FlexLayout::FlexItem(0.0f, 0.0f, 150));
     }
@@ -695,7 +700,7 @@ int main() {
             app->dec_ref();
             app->set_visible(true);
             app->draw_all();
-            nanogui::mainloop();
+            nanogui::mainloop(1/30.f * 1000);
         }
         
         nanogui::shutdown();

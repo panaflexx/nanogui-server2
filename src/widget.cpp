@@ -16,6 +16,10 @@
 #include <nanogui/opengl.h>
 #include <nanogui/screen.h>
 
+#define _USE_MATH_DEFINES
+#include <cmath>
+#include <GLFW/glfw3.h>
+
 /* Uncomment the following definition to draw red bounding
    boxes around widgets (useful for debugging drawing code) */
 
@@ -27,27 +31,28 @@ Widget::Widget(Widget* parent)
     : m_parent(nullptr), m_theme(nullptr), m_layout(nullptr),
     m_pos(0), m_size(0), m_fixed_size(0), m_visible(true), m_enabled(true),
     m_focused(false), m_mouse_focus(false), m_tooltip(""), m_font_size(-1.f),
-    m_icon_extra_scale(1.f), m_cursor(Cursor::Arrow) {
+    m_icon_extra_scale(1.f), m_cursor(Cursor::Arrow),
+    m_animation_type(AnimationType::None), m_animation_start(-1.0), m_animation_duration(0.5) {
     if (parent)
     {
         DebugName = parent->DebugName;
         parent->add_child(this);
-		m_min_size = Vector2i(0,0);
-		m_max_size = parent->size();
+        m_min_size = Vector2i(0,0);
+        m_max_size = parent->size();
     }
 }
 
 Widget::~Widget() {
 #define  DEBUG
 #ifdef DEBUG
-	#warning DEBUG ENABLED
-	if(m_id.length())
-		printf("~Widget id=%s debugname=%s\n", 
-		this->m_id.c_str(),
-		this->DebugName.c_str()
-	);
+    #warning DEBUG ENABLED
+    if(m_id.length())
+        printf("~Widget id=%s debugname=%s\n", 
+        this->m_id.c_str(),
+        this->DebugName.c_str()
+    );
 #endif
-	Screen* CanICastSreen = dynamic_cast<Screen*>(this);
+    Screen* CanICastSreen = dynamic_cast<Screen*>(this);
     bool screen_widget = CanICastSreen != NULL;
     if (screen_widget) {
         this->screen()->notify_widget_destroyed(this);
@@ -266,6 +271,87 @@ void Widget::request_focus() {
     ((Screen*)widget)->update_focus(this);
 }
 
+std::pair<bool, float> Widget::get_animation_progress() {
+    double current_time = glfwGetTime();
+    float progress = -1.0f;
+    bool anim_active = m_animation_start >= 0.0;
+
+    if (anim_active) {
+        printf("anim_active TRUE for %s\n", m_id.c_str());
+        double elapsed = current_time - m_animation_start;
+        if (elapsed >= m_animation_duration) {
+            progress = 1.0f;
+            end_animation();
+            m_animation_start = -1.0;
+            m_animation_type = AnimationType::None;
+        } else {
+            progress = static_cast<float>(elapsed / m_animation_duration);
+        }
+    }
+
+    return {anim_active, progress};
+}
+
+void Widget::start_animation(AnimationType type) {
+    if (type != AnimationType::None) {
+        m_animation_type = type;
+    }
+    if (m_animation_type != AnimationType::None) {
+        m_animation_start = glfwGetTime();
+        printf("Start animation %0.1f for %s\n", m_animation_start, m_id.c_str());
+    }
+}
+
+void Widget::apply_animation_transform(NVGcontext* ctx, float progress) {
+    if (progress < 0.0f)
+        return;
+
+    // Translate to center, apply transform, translate back
+    Vector2f center = Vector2f(m_size) * 0.5f;
+    nvgTranslate(ctx, center.x(), center.y());
+
+    switch (m_animation_type) {
+        case AnimationType::Sproing: {
+            printf("sproing %.2f for %s\n", progress, m_id.c_str());
+            float scale = 1.0f + 0.5f * std::sin(progress * 4.0f * float(M_PI)) * std::exp(-progress * 3.0f);
+            nvgScale(ctx, scale, scale);
+            break;
+        }
+        case AnimationType::Warble: {
+            float scale = 1.0f + 0.1f * std::sin(progress * 10.0f * float(M_PI));
+            nvgScale(ctx, scale, scale);
+            break;
+        }
+        case AnimationType::Rotate: {
+            float angle = progress * 2.0f * float(M_PI);
+            nvgRotate(ctx, angle);
+            break;
+        }
+        case AnimationType::SlideOpen: {
+            nvgTranslate(ctx, (1.0f - progress) * -m_size.x(), 0);
+            nvgGlobalAlpha(ctx, progress);
+            break;
+        }
+        case AnimationType::SlideClose: {
+            nvgTranslate(ctx, progress * -m_size.x(), 0);
+            nvgGlobalAlpha(ctx, 1.0f - progress);
+            break;
+        }
+        default:
+            break;
+    }
+
+    nvgTranslate(ctx, -center.x(), -center.y());
+}
+
+void Widget::end_animation() {
+    if (m_animation_type == AnimationType::SlideClose) {
+        m_visible = false;
+        printf("End animation for %s\n", m_id.c_str());
+    }
+    // Subclasses can override for more logic
+}
+
 void Widget::draw(NVGcontext* ctx) {
 #if defined(NANOGUI_SHOW_WIDGET_BOUNDS)
     nvgStrokeWidth(ctx, 1.0f);
@@ -276,30 +362,39 @@ void Widget::draw(NVGcontext* ctx) {
     nvgStroke(ctx);
 #endif
 
-    if (m_children.empty())
+    if (!m_visible)
         return;
 
+    nvgSave(ctx);
     nvgTranslate(ctx, m_pos.x(), m_pos.y());
 
-    //int NumChild = m_children.size();
+    // Apply animation transform for this widget
+    auto [anim_active, progress] = get_animation_progress();
+    if (anim_active) {
+        apply_animation_transform(ctx, progress);
+    }
 
-    for (auto child : m_children) {
-        if (!child->visible())
-            continue;
-    #if !defined(NANOGUI_SHOW_WIDGET_BOUNDS)
-        nvgSave(ctx);
-        nvgIntersectScissor(ctx, child->m_pos.x(), child->m_pos.y(),
-            child->m_size.x(), child->m_size.y());
-    #endif
+    // Draw children (their animations are handled in their own draw calls)
+    if (!m_children.empty()) {
+        for (auto child : m_children) {
+            if (!child->visible())
+                continue;
+        #if !defined(NANOGUI_SHOW_WIDGET_BOUNDS)
+            nvgSave(ctx);
+            nvgIntersectScissor(ctx, child->m_pos.x(), child->m_pos.y(),
+                child->m_size.x(), child->m_size.y());
+        #endif
 
-        child->draw(ctx);
+            child->draw(ctx);
 
-    #if !defined(NANOGUI_SHOW_WIDGET_BOUNDS)
-        nvgRestore(ctx);
-    #endif
+        #if !defined(NANOGUI_SHOW_WIDGET_BOUNDS)
+            nvgRestore(ctx);
+        #endif
+        }
     }
 
     nvgTranslate(ctx, -m_pos.x(), -m_pos.y());
+    nvgRestore(ctx);
 }
 
 NAMESPACE_END(nanogui)
