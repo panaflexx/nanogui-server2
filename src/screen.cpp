@@ -840,11 +840,11 @@ bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
             // Collect all focusable widgets in the current container
             std::vector<Widget*> focusable_widgets;
             collect_focusable_widgets(current_container, focusable_widgets, nullptr);
-            printf("Found %lu focusable widgets in container: %s\n", focusable_widgets.size(), current_container->id().c_str());
+            //printf("Found %lu focusable widgets in container: %s\n", focusable_widgets.size(), current_container->id().c_str());
 
             // If no focusable widgets, return false
             if (focusable_widgets.empty()) {
-                printf("No focusable widgets found\n");
+                //printf("No focusable widgets found\n");
                 return false;
             }
 
@@ -856,9 +856,9 @@ bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
             if (!current_focused) {
                 // No current focus, select the first (Tab) or last (Shift+Tab) focusable widget
                 next_focused = is_shift_tab ? focusable_widgets.back() : focusable_widgets.front();
-                printf("No current focus, selecting %s widget: %s\n", is_shift_tab ? "last" : "first", next_focused->id().c_str());
+                //printf("No current focus, selecting %s widget: %s\n", is_shift_tab ? "last" : "first", next_focused->id().c_str());
             } else {
-                printf("Current focused widget: %s\n", current_focused->id().c_str());
+                //printf("Current focused widget: %s\n", current_focused->id().c_str());
                 // Find the current focused widget in the list
                 auto it = std::find(focusable_widgets.begin(), focusable_widgets.end(), current_focused);
                 if (it != focusable_widgets.end()) {
@@ -866,25 +866,25 @@ bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
                         // Shift+Tab: Move to the previous widget, wrapping to the last if at the beginning
                         if (it != focusable_widgets.begin()) {
                             next_focused = *(it - 1);
-                            printf("Found previous widget: %s\n", next_focused->id().c_str());
+                            //printf("Found previous widget: %s\n", next_focused->id().c_str());
                         } else {
                             next_focused = focusable_widgets.back();
-                            printf("At beginning, wrapping to last widget: %s\n", next_focused->id().c_str());
+                            //printf("At beginning, wrapping to last widget: %s\n", next_focused->id().c_str());
                         }
                     } else {
                         // Tab: Move to the next widget, wrapping to the first if at the end
                         if (it + 1 != focusable_widgets.end()) {
                             next_focused = *(it + 1);
-                            printf("Found next widget: %s\n", next_focused->id().c_str());
+                            //printf("Found next widget: %s\n", next_focused->id().c_str());
                         } else {
                             next_focused = focusable_widgets.front();
-                            printf("At end, wrapping to first widget: %s\n", next_focused->id().c_str());
+                            //printf("At end, wrapping to first widget: %s\n", next_focused->id().c_str());
                         }
                     }
                 } else {
                     // Current focused widget not found (e.g., not focusable), select first (Tab) or last (Shift+Tab)
                     next_focused = is_shift_tab ? focusable_widgets.back() : focusable_widgets.front();
-                    printf("Current widget not focusable, selecting %s widget: %s\n", is_shift_tab ? "last" : "first", next_focused->id().c_str());
+                    //printf("Current widget not focusable, selecting %s widget: %s\n", is_shift_tab ? "last" : "first", next_focused->id().c_str());
                 }
             }
 
@@ -892,7 +892,7 @@ bool Screen::keyboard_event(int key, int scancode, int action, int modifiers) {
             if (next_focused) {
                 update_focus(next_focused);
                 m_redraw = true;
-                printf("Focus set to: %s\n", next_focused->id().c_str());
+                //printf("Focus set to: %s\n", next_focused->id().c_str());
                 return true;
             }
         }
