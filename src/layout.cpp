@@ -4,6 +4,7 @@
 #include <nanogui/theme.h>
 #include <nanogui/label.h>
 #include <nanogui/scrollpanel.h>
+#include <nanogui/opengl.h>
 #include <numeric>
 #include <cmath>
 
@@ -257,6 +258,7 @@ void GroupLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     }
 }
 
+/*
 Vector2i GridLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const {
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
@@ -319,6 +321,87 @@ void GridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vect
 
             grid[axis1][i1] = std::max(grid[axis1][i1], clamped_pref[axis1]);
             grid[axis2][i2] = std::max(grid[axis2][i2], clamped_pref[axis2]);
+        }
+    }
+}
+*/
+Vector2i GridLayout::preferred_size(NVGcontext* ctx, const Widget* widget) const {
+    // Compute the grid sizes based on child widgets' preferred sizes
+    std::vector<int> grid[2];
+    compute_layout(ctx, widget, grid);
+
+    // Calculate total size including margins and spacing
+    Vector2i size(
+        2 * m_margin + std::accumulate(grid[0].begin(), grid[0].end(), 0) +
+        std::max((int)grid[0].size() - 1, 0) * m_spacing[0],
+        2 * m_margin + std::accumulate(grid[1].begin(), grid[1].end(), 0) +
+        std::max((int)grid[1].size() - 1, 0) * m_spacing[1]
+    );
+
+    // Adjust for window header if present
+    const Window* window = dynamic_cast<const Window*>(widget);
+    if (window && !window->title().empty()) {
+        size[1] += window->theme()->m_window_header_height;
+    }
+
+    // Ensure the size is sufficient to hold all children
+    Vector2i widget_size = widget->size();
+    if (widget_size == Vector2i(0, 0)) {
+        // If widget size is (0,0), use the computed size directly
+        return size;
+    }
+
+    // Otherwise, respect the widget's fixed size or constraints
+    Vector2i fs = widget->fixed_size();
+    if (fs.x() > 0) size.x() = fs.x();
+    if (fs.y() > 0) size.y() = fs.y();
+    return size;
+}
+
+void GridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, std::vector<int>* _grid) const {
+    int axis1 = (int)m_orientation, axis2 = (axis1 + 1) % 2;
+    size_t num_children = widget->children().size(), visible_children = 0;
+    for (auto w : widget->children())
+        visible_children += w->visible() ? 1 : 0;
+
+    if (visible_children == 0 || m_resolution == 0)
+        return;
+
+    // Determine grid dimensions
+    Vector2i dim;
+    dim[axis1] = m_resolution;
+    dim[axis2] = (visible_children + m_resolution - 1) / m_resolution;
+
+    // Initialize grid arrays
+    _grid[axis1].clear(); _grid[axis1].resize(dim[axis1], 0);
+    _grid[axis2].clear(); _grid[axis2].resize(dim[axis2], 0);
+
+    // Compute maximum preferred sizes for each cell
+    size_t child = 0;
+    for (int i2 = 0; i2 < dim[axis2]; i2++) {
+        for (int i1 = 0; i1 < dim[axis1]; i1++) {
+            if (child >= num_children)
+                break;
+
+            Widget* w = widget->children()[child++];
+            while (!w->visible() && child < num_children)
+                w = widget->children()[child++];
+
+            if (!w->visible())
+                continue;
+
+            Vector2i ps = w->preferred_size(ctx);
+            Vector2i min_s = w->min_size();
+            Vector2i max_s = w->max_size();
+
+            // Clamp preferred size to min/max constraints
+            Vector2i clamped_pref = max(ps, min_s);
+            if (max_s.x() > 0) clamped_pref.x() = std::min(clamped_pref.x(), max_s.x());
+            if (max_s.y() > 0) clamped_pref.y() = std::min(clamped_pref.y(), max_s.y());
+
+            // Update grid sizes
+            _grid[axis1][i1] = std::max(_grid[axis1][i1], clamped_pref[axis1]);
+            _grid[axis2][i2] = std::max(_grid[axis2][i2], clamped_pref[axis2]);
         }
     }
 }
@@ -423,6 +506,218 @@ void GridLayout::perform_layout(NVGcontext* ctx, Widget* widget) const {
     }
 }
 
+/*
+void GridLayout::draw_table(NVGcontext *ctx, const Widget *widget) {
+    if (!m_draw_table) return;
+
+	if(widget->id().size()) {
+		nvgFontFace(ctx, "sans-bold");
+		nvgFontSize(ctx, 18.0f);
+		nvgText(ctx, 0, 18, widget->id(), nullptr);
+	}
+
+    std::vector<Widget*> visible_children;
+    for (auto w : widget->children()) {
+        if (w->visible()) visible_children.push_back(w);
+    }
+    int num_visible = (int)visible_children.size();
+    if (num_visible == 0) return;
+
+    int num_cols, num_rows;
+    if (m_orientation == Orientation::Horizontal) {
+        num_cols = m_resolution;
+        num_rows = (num_visible + num_cols - 1) / num_cols;
+    } else {
+        num_rows = m_resolution;
+        num_cols = (num_visible + num_rows - 1) / num_rows;
+    }
+
+	// Draw table outline
+	Vector2i t_pos = Vector2i(0,0);
+	nvgBeginPath(ctx);
+	nvgRect(ctx, (float)t_pos.x(), (float)t_pos.y(),
+				 (float)widget->width(), (float)widget->height());
+	nvgStrokeColor(ctx, m_table_theme.border_color);
+	nvgStrokeWidth(ctx, m_table_theme.border_width);
+	nvgStroke(ctx);
+
+    int child_idx = 0;
+    for (int row = 0; row < num_rows; ++row) {
+        for (int col = 0; col < num_cols; ++col) {
+            if (child_idx >= num_visible) break;
+            Widget *child = visible_children[child_idx++];
+
+            bool is_header = (m_table_theme.first_row_is_header && row == 0) ||
+                             (m_table_theme.first_column_is_header && col == 0);
+
+            Color bg;
+            if (is_header) {
+                bg = m_table_theme.header_background;
+            } else {
+                Color row_bg = (row % 2 == 0) ? m_table_theme.even_row_background : m_table_theme.odd_row_background;
+                Color col_bg = (col % 2 == 0) ? m_table_theme.even_column_background : m_table_theme.odd_column_background;
+                if (m_table_theme.shade_rows && m_table_theme.shade_columns) {
+                    bg = Color((row_bg.r() + col_bg.r()) / 2.f, (row_bg.g() + col_bg.g()) / 2.f,
+                               (row_bg.b() + col_bg.b()) / 2.f, (row_bg.a() + col_bg.a()) / 2.f);
+                } else if (m_table_theme.shade_rows) {
+                    bg = row_bg;
+                } else if (m_table_theme.shade_columns) {
+                    bg = col_bg;
+                } else {
+                    bg = Color(255, 255, 255, 0); // transparent
+                }
+            }
+
+            Vector2i abs_pos = child->position();// + child->position();
+
+            //nvgSave(ctx);
+            nvgBeginPath(ctx);
+            nvgRect(ctx, (float)abs_pos.x(), (float)abs_pos.y(), (float)child->width(), (float)child->height());
+            nvgFillColor(ctx, bg);
+            nvgFill(ctx);
+
+            if (m_table_theme.draw_borders) {
+                nvgStrokeColor(ctx, m_table_theme.border_color);
+                nvgStrokeWidth(ctx, m_table_theme.border_width);
+                nvgStroke(ctx);
+            }
+            //nvgRestore(ctx);
+        }
+    }
+}
+*/
+void GridLayout::draw_table(NVGcontext *ctx, const Widget *widget) {
+    if (!m_draw_table) return;
+
+    std::vector<Widget*> visible_children;
+    for (auto w : widget->children()) {
+        if (w->visible()) visible_children.push_back(w);
+    }
+    int num_visible = (int)visible_children.size();
+    if (num_visible == 0) return;
+
+    int num_cols, num_rows;
+    if (m_orientation == Orientation::Horizontal) {
+        num_cols = m_resolution;
+        num_rows = (num_visible + num_cols - 1) / num_cols;
+    } else {
+        num_rows = m_resolution;
+        num_cols = (num_visible + num_rows - 1) / num_rows;
+    }
+
+    // Get widget dimensions
+    Vector2i widget_size = widget->size();
+    Vector2i t_pos = Vector2i(0, 0);
+    Vector2i offset = Vector2i(m_margin, m_margin);
+    const Window* window = dynamic_cast<const Window*>(widget);
+    if (window && !window->title().empty()) {
+        offset.y() += window->theme()->m_window_header_height;
+    }
+
+    // Compute grid cell positions based on actual child widget positions
+    std::vector<float> col_positions(num_cols + 1, 0.0f);
+    std::vector<float> row_positions(num_rows + 1, 0.0f);
+    col_positions[0] = offset.x();
+    row_positions[0] = offset.y();
+
+    // Initialize grid sizes from compute_layout for reference
+    std::vector<int> grid[2];
+    compute_layout(ctx, widget, grid);
+
+    // Override with actual child positions
+    int child_idx = 0;
+    for (int row = 0; row < num_rows; ++row) {
+        for (int col = 0; col < num_cols; ++col) {
+            if (child_idx >= num_visible) break;
+            Widget* child = visible_children[child_idx++];
+            Vector2i pos = child->position();
+            Vector2i size = child->size();
+
+            // Update column and row positions based on actual widget bounds
+            if (col < num_cols) {
+				float vcol = pos.x() + size.x() + (col < num_cols - 1 ? m_spacing[0] : 0);
+                col_positions[col + 1] = std::max(col_positions[col + 1], vcol);
+            }
+            if (row < num_rows) {
+				float vrow = pos.y() + size.y() + (row < num_rows - 1 ? m_spacing[1] : 0);
+                row_positions[row + 1] = std::max(row_positions[row + 1], vrow);
+            }
+        }
+    }
+
+    // Extend table to widget's full size if larger
+    col_positions[num_cols] = std::max(col_positions[num_cols], (float)widget_size.x() - m_margin);
+    row_positions[num_rows] = std::max(row_positions[num_rows], (float)widget_size.y() - m_margin);
+
+    // Draw row backgrounds
+    nvgSave(ctx);
+    for (int row = 0; row < num_rows; ++row) {
+        bool is_header = m_table_theme.first_row_is_header && row == 0;
+        Color bg = is_header ? m_table_theme.header_background :
+                   (m_table_theme.shade_rows ?
+                    (row % 2 == 0 ? m_table_theme.even_row_background : m_table_theme.odd_row_background) :
+                    Color(255, 255, 255, 0));
+
+        if (bg.a() > 0) {
+            nvgBeginPath(ctx);
+            nvgRect(ctx, t_pos.x() + col_positions[0], t_pos.y() + row_positions[row],
+                    col_positions[num_cols] - col_positions[0], row_positions[row + 1] - row_positions[row]);
+            nvgFillColor(ctx, bg);
+            nvgFill(ctx);
+        }
+    }
+
+    // Draw column backgrounds (if enabled)
+    if (m_table_theme.shade_columns) {
+        for (int col = 0; col < num_cols; ++col) {
+            bool is_header = m_table_theme.first_column_is_header && col == 0;
+            if (is_header && m_table_theme.first_row_is_header) continue; // Skip if already drawn as row header
+            Color bg = is_header ? m_table_theme.header_background :
+                       (col % 2 == 0 ? m_table_theme.even_column_background : m_table_theme.odd_column_background);
+
+            if (bg.a() > 0) {
+                nvgBeginPath(ctx);
+                nvgRect(ctx, t_pos.x() + col_positions[col], t_pos.y() + row_positions[0],
+                        col_positions[col + 1] - col_positions[col], row_positions[num_rows] - row_positions[0]);
+                nvgFillColor(ctx, bg);
+                nvgFill(ctx);
+            }
+        }
+    }
+
+    // Draw gridlines
+    if (m_table_theme.draw_borders) {
+        nvgStrokeColor(ctx, m_table_theme.border_color);
+        nvgStrokeWidth(ctx, m_table_theme.border_width);
+
+        // Vertical gridlines (halfway between columns)
+        for (int col = 1; col < num_cols; ++col) {
+            float x = t_pos.x() + col_positions[col] - m_spacing[0] / 2.0f;
+            nvgBeginPath(ctx);
+            nvgMoveTo(ctx, x, t_pos.y() + row_positions[0]);
+            nvgLineTo(ctx, x, t_pos.y() + row_positions[num_rows]);
+            nvgStroke(ctx);
+        }
+
+        // Horizontal gridlines (halfway between rows)
+        for (int row = 1; row < num_rows; ++row) {
+            float y = t_pos.y() + row_positions[row] - m_spacing[1] / 2.0f;
+            nvgBeginPath(ctx);
+            nvgMoveTo(ctx, t_pos.x() + col_positions[0], y);
+            nvgLineTo(ctx, t_pos.x() + col_positions[num_cols], y);
+            nvgStroke(ctx);
+        }
+
+        // Draw table outline
+        nvgBeginPath(ctx);
+        nvgRect(ctx, t_pos.x() + col_positions[0], t_pos.y() + row_positions[0],
+                col_positions[num_cols] - col_positions[0], row_positions[num_rows] - row_positions[0]);
+        nvgStroke(ctx);
+    }
+
+    nvgRestore(ctx);
+}
+
 AdvancedGridLayout::AdvancedGridLayout(const std::vector<int>& cols, const std::vector<int>& rows, int margin)
     : m_cols(cols), m_rows(rows), m_margin(margin) {
     m_col_stretch.resize(m_cols.size(), 0);
@@ -525,7 +820,23 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, s
                 int target_size = ps;
                 if (max_s == 0) max_s = container_size[axis];
                 target_size = std::max(min_s, std::min(target_size, max_s));
-
+	struct TableTheme {
+        Color header_background = Color(180, 180, 180, 255);
+        Color header_text_color = Color(0, 0, 0, 255);
+        std::string header_font = "sans-bold";
+        int header_font_size = -1; // -1 means use default
+        Color even_row_background = Color(250, 250, 250, 255);
+        Color odd_row_background = Color(245, 245, 245, 255);
+        Color even_column_background = Color(250, 250, 250, 255);
+        Color odd_column_background = Color(245, 245, 245, 255);
+        Color border_color = Color(200, 200, 200, 255);
+        float border_width = 1.0f;
+        bool shade_rows = true;
+        bool shade_columns = false;
+        bool draw_borders = true;
+        bool first_row_is_header = true;
+        bool first_column_is_header = false;
+    };
                 if (anchor.pos[axis] + anchor.size[axis] > (int)grid.size())
                     throw std::runtime_error(
                         "Advanced grid layout: widget is out of bounds: " +
@@ -561,6 +872,185 @@ void AdvancedGridLayout::compute_layout(NVGcontext* ctx, const Widget* widget, s
                 grid[i] += (int)std::round(amt * stretch[i]);
         }
     }
+}
+
+/*
+void AdvancedGridLayout::draw_table(NVGcontext *ctx, const Widget *widget) {
+    if (!m_draw_table) return;
+
+    std::vector<Widget*> visible_children;
+    for (auto w : widget->children()) {
+        if (w->visible()) visible_children.push_back(w);
+    }
+    if (visible_children.empty()) return;
+
+    for (auto w : visible_children) {
+        auto it = m_anchor.find(w);
+        if (it == m_anchor.end()) continue;
+        const Anchor &a = it->second;
+        int row = a.pos[1], col = a.pos[0];
+
+        bool is_header = (m_table_theme.first_row_is_header && row == 0) ||
+                         (m_table_theme.first_column_is_header && col == 0);
+
+        Color bg;
+        if (is_header) {
+            bg = m_table_theme.header_background;
+        } else {
+            Color row_bg = (row % 2 == 0) ? m_table_theme.even_row_background : m_table_theme.odd_row_background;
+            Color col_bg = (col % 2 == 0) ? m_table_theme.even_column_background : m_table_theme.odd_column_background;
+            if (m_table_theme.shade_rows && m_table_theme.shade_columns) {
+                bg = Color((row_bg.r() + col_bg.r()) / 2.f, (row_bg.g() + col_bg.g()) / 2.f,
+                           (row_bg.b() + col_bg.b()) / 2.f, (row_bg.a() + col_bg.a()) / 2.f);
+            } else if (m_table_theme.shade_rows) {
+                bg = row_bg;
+            } else if (m_table_theme.shade_columns) {
+                bg = col_bg;
+            } else {
+                bg = Color(255, 255, 255, 0); // transparent
+            }
+        }
+
+        Vector2i abs_pos = widget->absolute_position() + w->position();
+
+        nvgSave(ctx);
+        nvgBeginPath(ctx);
+        nvgRect(ctx, (float)abs_pos.x(), (float)abs_pos.y(), (float)w->width(), (float)w->height());
+        nvgFillColor(ctx, bg);
+        nvgFill(ctx);
+
+        if (m_table_theme.draw_borders) {
+            nvgStrokeColor(ctx, m_table_theme.border_color);
+            nvgStrokeWidth(ctx, m_table_theme.border_width);
+            nvgStroke(ctx);
+        }
+        nvgRestore(ctx);
+    }
+}
+*/
+void AdvancedGridLayout::draw_table(NVGcontext *ctx, const Widget *widget) {
+    if (!m_draw_table) return;
+
+    std::vector<Widget*> visible_children;
+    for (auto w : widget->children()) {
+        if (w->visible()) visible_children.push_back(w);
+    }
+    if (visible_children.empty()) return;
+
+    int num_cols = (int)m_cols.size();
+    int num_rows = (int)m_rows.size();
+
+    // Get widget dimensions
+    Vector2i widget_size = widget->size();
+    Vector2i t_pos = Vector2i(0, 0);
+    Vector2i offset = Vector2i(m_margin, m_margin);
+    const Window* window = dynamic_cast<const Window*>(widget);
+    if (window && !window->title().empty()) {
+        offset.y() += window->theme()->m_window_header_height;
+    }
+
+    // Compute grid cell positions based on actual child widget positions
+    std::vector<float> col_positions(num_cols + 1, 0.0f);
+    std::vector<float> row_positions(num_rows + 1, 0.0f);
+    col_positions[0] = offset.x();
+    row_positions[0] = offset.y();
+
+    // Initialize grid sizes from compute_layout for reference
+    std::vector<int> grid[2];
+    compute_layout(ctx, widget, grid);
+
+    // Override with actual child positions
+    for (auto w : visible_children) {
+        auto it = m_anchor.find(w);
+        if (it == m_anchor.end()) continue;
+        const Anchor& a = it->second;
+        int col = a.pos[0];
+        int row = a.pos[1];
+        Vector2i pos = w->position();
+        Vector2i size = w->size();
+
+        // Update column and row positions based on actual widget bounds
+        if (col < num_cols) {
+			float vcol = pos.x() + size.x() + (col < num_cols - 1 ? 1 : 0);
+            col_positions[col + 1] = std::max(col_positions[col + 1], vcol);
+        }
+        if (row < num_rows) {
+			float vrow = pos.y() + size.y() + (row < num_rows - 1 ? 1 : 0);
+            row_positions[row + 1] = std::max(row_positions[row + 1], vrow);
+        }
+    }
+
+    // Extend table to widget's full size if larger
+    col_positions[num_cols] = std::max(col_positions[num_cols], (float)widget_size.x() - m_margin);
+    row_positions[num_rows] = std::max(row_positions[num_rows], (float)widget_size.y() - m_margin);
+
+    // Draw row backgrounds
+    nvgSave(ctx);
+    for (int row = 0; row < num_rows; ++row) {
+        bool is_header = m_table_theme.first_row_is_header && row == 0;
+        Color bg = is_header ? m_table_theme.header_background :
+                   (m_table_theme.shade_rows ?
+                    (row % 2 == 0 ? m_table_theme.even_row_background : m_table_theme.odd_row_background) :
+                    Color(255, 255, 255, 0));
+
+        if (bg.a() > 0) {
+            nvgBeginPath(ctx);
+            nvgRect(ctx, t_pos.x() + col_positions[0], t_pos.y() + row_positions[row],
+                    col_positions[num_cols] - col_positions[0], row_positions[row + 1] - row_positions[row]);
+            nvgFillColor(ctx, bg);
+            nvgFill(ctx);
+        }
+    }
+
+    // Draw column backgrounds (if enabled)
+    if (m_table_theme.shade_columns) {
+        for (int col = 0; col < num_cols; ++col) {
+            bool is_header = m_table_theme.first_column_is_header && col == 0;
+            if (is_header && m_table_theme.first_row_is_header) continue; // Skip if already drawn as row header
+            Color bg = is_header ? m_table_theme.header_background :
+                       (col % 2 == 0 ? m_table_theme.even_column_background : m_table_theme.odd_column_background);
+
+            if (bg.a() > 0) {
+                nvgBeginPath(ctx);
+                nvgRect(ctx, t_pos.x() + col_positions[col], t_pos.y() + row_positions[0],
+                        col_positions[col + 1] - col_positions[col], row_positions[num_rows] - row_positions[0]);
+                nvgFillColor(ctx, bg);
+                nvgFill(ctx);
+            }
+        }
+    }
+
+    // Draw gridlines
+    if (m_table_theme.draw_borders) {
+        nvgStrokeColor(ctx, m_table_theme.border_color);
+        nvgStrokeWidth(ctx, m_table_theme.border_width);
+
+        // Vertical gridlines (halfway between columns)
+        for (int col = 1; col < num_cols; ++col) {
+            float x = t_pos.x() + col_positions[col] - 0.5f;
+            nvgBeginPath(ctx);
+            nvgMoveTo(ctx, x, t_pos.y() + row_positions[0]);
+            nvgLineTo(ctx, x, t_pos.y() + row_positions[num_rows]);
+            nvgStroke(ctx);
+        }
+
+        // Horizontal gridlines (halfway between rows)
+        for (int row = 1; row < num_rows; ++row) {
+            float y = t_pos.y() + row_positions[row] - 0.5f;
+            nvgBeginPath(ctx);
+            nvgMoveTo(ctx, t_pos.x() + col_positions[0], y);
+            nvgLineTo(ctx, t_pos.x() + col_positions[num_cols], y);
+            nvgStroke(ctx);
+        }
+
+        // Draw table outline
+        nvgBeginPath(ctx);
+        nvgRect(ctx, t_pos.x() + col_positions[0], t_pos.y() + row_positions[0],
+                col_positions[num_cols] - col_positions[0], row_positions[num_rows] - row_positions[0]);
+        nvgStroke(ctx);
+    }
+
+    nvgRestore(ctx);
 }
 
 FlexLayout::FlexLayout(FlexDirection direction, JustifyContent justify_content,

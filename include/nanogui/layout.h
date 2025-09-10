@@ -41,6 +41,25 @@ enum class Orientation {
  *
  * \brief Basic interface of a layout engine.
  */
+
+struct TableTheme {
+	Color header_background = Color(180, 180, 180, 255);
+	Color header_text_color = Color(0, 0, 0, 255);
+	std::string header_font = "sans-bold";
+	int header_font_size = -1; // -1 means use default
+	Color even_row_background = Color(250, 250, 250, 255);
+	Color odd_row_background = Color(245, 245, 245, 255);
+	Color even_column_background = Color(250, 250, 250, 255);
+	Color odd_column_background = Color(245, 245, 245, 255);
+	Color border_color = Color(200, 200, 200, 255);
+	float border_width = 1.0f;
+	bool shade_rows = true;
+	bool shade_columns = false;
+	bool draw_borders = true;
+	bool first_row_is_header = true;
+	bool first_column_is_header = false;
+};
+
 class NANOGUI_EXPORT Layout : public Object {
 public:
     Widget* SizeDebugPointer;
@@ -70,9 +89,23 @@ public:
      */
     virtual Vector2i preferred_size(NVGcontext *ctx, const Widget *widget) const = 0;
 
+    virtual void enable_draw_table(const TableTheme &theme = TableTheme()) {
+        m_draw_table = true;
+        m_table_theme = theme;
+    }
+
+    virtual void disable_draw_table() {
+        m_draw_table = false;
+    }
+
+	virtual void draw_table(NVGcontext *ctx, const Widget *widget) {}
+
 protected:
     /// Default destructor (exists for inheritance).
     virtual ~Layout() { }
+
+	bool m_draw_table = false;
+    TableTheme m_table_theme;
 };
 
 /**
@@ -324,12 +357,14 @@ public:
     /// See \ref Layout::perform_layout.
     virtual void perform_layout(NVGcontext *ctx, Widget *widget) const override;
 
+	/// Draw table on background
+	virtual void draw_table(NVGcontext *ctx, const Widget *widget) override;
+
 protected:
     // Compute the maximum row and column sizes
     void compute_layout(NVGcontext *ctx, const Widget *widget,
                         std::vector<int> *grid) const;
 
-protected:
     /// The Orientation of the GridLayout.
     Orientation m_orientation;
     /// The default Alignment of the GridLayout.
@@ -463,6 +498,9 @@ public:
 
     /// See \ref Layout::perform_layout.
     virtual void perform_layout(NVGcontext *ctx, Widget *widget) const override;
+
+	/// Draw table on background
+	virtual void draw_table(NVGcontext *ctx, const Widget *widget) override;
 
 protected:
     // Compute the maximum row and column sizes

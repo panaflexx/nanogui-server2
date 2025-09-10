@@ -22,6 +22,9 @@ using namespace nanogui;
 class CarSalesFormApp : public Screen {
 public:
     Window *m_rootWindow = nullptr;
+	Label *m_loan_amount, *m_interest_rate, *m_trade_in_value, *m_total_loan, *m_monthly_payment;
+	Label *m_term, *m_total_interest;
+	CheckBox *m_has_trade_in;
     
     CarSalesFormApp() : Screen(Vector2i(1000, 800), "Car Sales Management System") {
         inc_ref();
@@ -103,6 +106,7 @@ public:
 		create_customer_section(contentContainer, mainLayout);
 		create_financing_section(contentContainer, mainLayout);
 		create_options_section(contentContainer, mainLayout);
+		create_loan_table(contentContainer);
 		create_action_buttons(contentContainer, mainLayout);
 		add_spacer(contentContainer, mainLayout, 30);
         
@@ -649,6 +653,60 @@ private:
         });
         buttonLayout->set_flex_item(clearButton, FlexLayout::FlexItem(0.0f, 0.0f, 150));
     }
+
+	void create_loan_table(Widget *parent) {
+		Widget *table = new Widget(parent);
+		// Use GridLayout with 2 columns and table drawing enabled
+		GridLayout *layout = new GridLayout(Orientation::Horizontal, 2, Alignment::Middle, 15, 5);
+		layout->set_col_alignment( Alignment::Fill);
+		layout->set_row_alignment( Alignment::Middle );
+		table->set_width(400);
+
+		TableTheme theme;
+		theme.header_background = Color(100, 100, 100, 255);
+		theme.even_row_background = Color(150, 140, 140, 255);
+		theme.odd_row_background = Color(175, 155, 155, 255);
+		theme.border_color = Color(50, 50, 50, 128);
+		theme.border_width = 1.0f;
+		theme.shade_rows = true;
+		theme.first_row_is_header = true;
+		layout->enable_draw_table(theme);
+
+		table->set_layout(layout);
+		//table->set_min_height( 200 );
+		table->set_id("table");
+
+		// Header
+		new Label(table, "Description ");
+		new Label(table, "Value ");
+		// Form inputs
+		new Label(table, "Loan Amount ($)");
+		m_loan_amount = new Label(table, "$0.00");
+
+		new Label(table, "Interest Rate (%)");
+		m_interest_rate = new Label(table, "5.00%");
+
+		new Label(table, "Loan Term (years)");
+		m_trade_in_value = new Label(table, "5");
+
+		new Label(table, "Has Trade-In");
+		m_has_trade_in = new CheckBox(table, "");
+		m_has_trade_in->set_checked(false);
+		m_has_trade_in->set_fixed_height(16);
+
+		new Label(table, "Trade-In Value ($)");
+		m_trade_in_value = new Label(table, "50");
+
+		// Loan calculation results
+		new Label(table, "Total Loan Amount");
+		m_total_loan = new Label(table, "---");
+
+		new Label(table, "Monthly Payment");
+		m_monthly_payment = new Label(table, "---");
+
+		new Label(table, "Total Interest");
+		m_total_interest = new Label(table, "---");
+	}
     
     void add_spacer(Widget *parent, FlexLayout *parentLayout, int height) {
         Widget *spacer = new Widget(parent);
@@ -700,7 +758,7 @@ int main() {
             app->dec_ref();
             app->set_visible(true);
             app->draw_all();
-            nanogui::mainloop(1/30.f * 1000);
+            nanogui::mainloop();
         }
         
         nanogui::shutdown();

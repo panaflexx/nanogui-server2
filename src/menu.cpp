@@ -502,6 +502,7 @@ bool PopupMenu::keyboard_event(int key, int scancode, int action, int modifiers)
                 set_visible(false);
                 set_highlighted_index(-1);
                 m_parent_window->request_focus();
+                parent()->request_focus();
                 return true;
             }
             else if (key == GLFW_KEY_ENTER || key == GLFW_KEY_KP_ENTER || key == GLFW_KEY_SPACE)
@@ -862,6 +863,7 @@ bool Dropdown::keyboard_event(int key, int scancode, int action, int modifiers) 
         m_popup->set_highlighted_index(-1);
         m_popup->parent_window()->request_focus();
         set_pushed(false);
+		screen()->update_focus(this);
         return true;
     }
     // Optionally, pass event to popup for further navigation while open

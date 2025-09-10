@@ -53,7 +53,7 @@ Widget* Window::button_panel() {
 
     if (!m_button_panel) {
         m_button_panel = new Widget(this);
-        m_button_panel->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 4));
+        m_button_panel->set_layout(new BoxLayout(Orientation::Horizontal, Alignment::Middle, 0, 0));
     }
     return m_button_panel;
 }
@@ -86,7 +86,7 @@ void Window::perform_layout(NVGcontext* ctx) {
         m_button_panel->set_visible(true);
         m_button_panel->set_size(Vector2i(width(), 22));
         m_button_panel->set_position(Vector2i(
-            width() - (m_button_panel->preferred_size(ctx).x() + 5), 3));
+            width() - (m_button_panel->preferred_size(ctx).x() - 2), 4));
         m_button_panel->perform_layout(ctx);
     }
     //// Calclate the minimum size that the window can resize to.

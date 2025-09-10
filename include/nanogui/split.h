@@ -341,7 +341,13 @@ public:
 			//printf("m_dragPosition = %f\n", m_dragPosition);
             
             // Update layout
-            perform_layout(screen() ? screen()->nvg_context() : nullptr);
+            //perform_layout(screen() ? screen()->nvg_context() : nullptr);
+			auto screen = dynamic_cast<Screen*>(m_parent->screen());
+			if (screen) {
+				screen->perform_layout();
+				screen->redraw();
+			}
+			
             return true;
         }
         return Widget::mouse_drag_event(p, rel, button, modifiers);

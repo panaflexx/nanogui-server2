@@ -374,6 +374,11 @@ void Widget::draw(NVGcontext* ctx) {
         apply_animation_transform(ctx, progress);
     }
 
+	// Draw table layout if enabled
+	if(layout()) { 
+		layout()->draw_table(ctx, this);
+	}
+
     // Draw children (their animations are handled in their own draw calls)
     if (!m_children.empty()) {
         for (auto child : m_children) {
