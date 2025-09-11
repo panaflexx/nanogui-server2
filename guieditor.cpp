@@ -1409,6 +1409,34 @@ void GUIEditor::addGridLayoutControls(GridLayout* layout) {
         redraw();
     });
     orientation_combo->set_fixed_height(20);
+
+    // Tables
+	// TODO add themes
+    new Label(properties_pane, "Table:", "sans-bold");
+    ComboBox *table_combo = new ComboBox(properties_pane, {"None", "Pinkish Theme"});
+    //orientation_combo->set_selected_index(layout->orientation() == Orientation::Horizontal ? 0 : 1);
+    table_combo->set_callback([this, layout](int index) {
+		if(index > 0) {
+			TableTheme theme;
+			theme.header_background = Color(100, 100, 100, 255);
+			theme.even_row_background = Color(150, 140, 140, 255);
+			theme.odd_row_background = Color(175, 155, 155, 255);
+			theme.border_color = Color(50, 50, 50, 128);
+			theme.border_width = 1.0f;
+			theme.shade_rows = true;
+			theme.first_row_is_header = true;
+			if( selected_widget->layout() ) {
+				layout->enable_draw_table(theme);
+				layout->set_margin( 4 );
+			}
+		} else {
+				layout->disable_draw_table();
+		}
+
+        perform_layout();
+        redraw();
+    });
+    orientation_combo->set_fixed_height(20);
 }
 
 void GUIEditor::addFlexLayoutControls(FlexLayout* layout) {
