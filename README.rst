@@ -22,6 +22,10 @@ callbacks, a variety of useful widget types and Retina-capable rendering on
 Apple devices thanks to NanoVG_ by Mikko Mononen. Python bindings of all
 functionality are provided using pybind11_.
 
+**NEW**: Example GUI editor.
+
+**NEW**: GridLayout and AdvancedGridLayout draw tables.
+
 **NEW**: Support for color emoji font in NanoVG fontstash.
 
 **NEW**: Flex Layout (flexdemo.cpp)
