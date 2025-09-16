@@ -462,8 +462,8 @@ public:
                 float scale = std::min((float)width() / img.w, (float)height() / img.h) * 0.9f;
                 full_w = img.w * scale;
                 full_h = img.h * scale;
-                full_x = (width() - full_w) / 2.0f - m_pos.x();
-                full_y = (height() - full_h) / 2.0f - m_pos.y();
+                full_x = (parent()->width() - full_w) / 2.0f - m_pos.x();
+                full_y = (parent()->height() - full_h) / 2.0f - m_pos.y();
             }
             pthread_mutex_unlock(&m_highResMutex);
 
