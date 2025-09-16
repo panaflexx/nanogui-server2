@@ -28,6 +28,8 @@ functionality are provided using pybind11_.
 
 **NEW**: Support for color emoji font in NanoVG fontstash.
 
+**NEW**: NanoVG imagestash, for loading & caching images in a tecture atlas.
+
 **NEW**: Flex Layout (flexdemo.cpp)
 
 **NEW**: Menubar, Dropdown menus 
@@ -86,24 +88,40 @@ other goodies.
 Example screenshot
 ----------------------------------------------------------------------------------------
 
+NanoGUI example
+
 .. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot.png
    :alt: Screenshot of Example 1.
    :align: center
+
+Label Clipping, Emoji Fonts
 
 .. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot3.png
    :alt: Screenshot of Example 2.
    :align: center
 
+Flex layout, forms, tab between fields focus, DropDown widget
+
 .. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot4.png
    :alt: Screenshot of Example 3.
    :align: center
+
+Turn GridLayout into tables
 
 .. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot5.png
    :alt: Screenshot of Example 4.
    :align: center
 
+GUI editor example
+
 .. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot6.png
    :alt: Screenshot of Example 5.
+   :align: center
+
+Image Stash example
+
+.. image:: https://raw.githubusercontent.com/panaflexx/nanogui2/master/resources/screenshot7.png
+   :alt: Screenshot of Example 6.
    :align: center
 
 Description
