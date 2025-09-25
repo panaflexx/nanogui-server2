@@ -103,6 +103,13 @@ private:
 	void addFlexLayoutControls(FlexLayout* layout);
 	void addGroupLayoutControls(GroupLayout* layout);
 	//void addTypeSpecificProperties(Widget* widget);
+	Widget* find_widget_with_handle(const Vector2i& p);
+	Widget* find_widget_with_handle_recursive(Widget* w, const Vector2i& p);
+
+	bool resizing = false;
+	int resize_handle = -1;
+	Vector2i resize_start_pos;
+	Vector2i resize_start_size;
 };
 
 #endif // GUIEDITOR_H

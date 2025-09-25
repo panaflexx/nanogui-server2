@@ -1570,6 +1570,307 @@ static bool is_child(Widget *find, Widget *search) {
 
 bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
     m_redraw = true; // Force redraw on all mouse events
+    Widget *clicked_widget = find_widget(p);
+
+    if (Screen::mouse_button_event(p, button, down, modifiers)) {
+        return true;
+    }
+
+    if (!TestModeManager::getInstance()->isTestModeEnabled() && button == GLFW_MOUSE_BUTTON_1 && down) {
+        // NEW: Check for resize handle hit first
+        Widget* hit_handle_widget = find_widget_with_handle(p);
+        if (hit_handle_widget) {
+            if (hit_handle_widget != selected_widget) {
+                selected_widget = hit_handle_widget;
+                update_properties();
+            }
+            // Determine which handle was hit
+            Vector2i w_pos = hit_handle_widget->absolute_position();
+            Vector2i w_size = hit_handle_widget->size();
+            Vector2i handle_pos[8] = {
+                {w_pos.x() - 4, w_pos.y() - 4}, // 0: top-left
+                {w_pos.x() + w_size.x() - 4, w_pos.y() - 4}, // 1: top-right
+                {w_pos.x() - 4, w_pos.y() + w_size.y() - 4}, // 2: bottom-left
+                {w_pos.x() + w_size.x() - 4, w_pos.y() + w_size.y() - 4}, // 3: bottom-right
+                {w_pos.x() + (w_size.x() - 8) / 2, w_pos.y() - 4}, // 4: top-middle
+                {w_pos.x() + (w_size.x() - 8) / 2, w_pos.y() + w_size.y() - 4}, // 5: bottom-middle
+                {w_pos.x() - 4, w_pos.y() + (w_size.y() - 8) / 2}, // 6: left-middle
+                {w_pos.x() + w_size.x() - 4, w_pos.y() + (w_size.y() - 8) / 2} // 7: right-middle
+            };
+            for (int i = 0; i < 8; ++i) {
+                Vector2i rel = p - handle_pos[i];
+                if (rel.x() >= 0 && rel.y() >= 0 && rel.x() < 8 && rel.y() < 8) {
+                    resize_handle = i;
+                    break;
+                }
+            }
+            resizing = true;
+            resize_start_pos = selected_widget->position();
+            resize_start_size = selected_widget->size();
+            drag_start = p;
+            return true;
+        }
+
+        if (current_tool == FA_TRASH) {
+            // Delete tool: Remove the clicked widget if valid
+            if (clicked_widget && clicked_widget->window() != editor_win && clicked_widget != canvas_win) {
+                Widget *parent = clicked_widget->parent();
+                if (parent) {
+                    // If the clicked widget is selected, clear the selection
+                    if (selected_widget == clicked_widget) {
+                        selected_widget = nullptr;
+                    }
+					set_focused(false);
+					notify_widget_destroyed(clicked_widget);
+                    // Increment reference to prevent deletion during removal
+                    clicked_widget->inc_ref();
+                    parent->remove_child(clicked_widget);
+                    // Update UI
+                    //parent->perform_layout(m_nvg_context);
+                    //perform_layout();
+                    update_properties();
+                    redraw();
+                    clicked_widget->dec_ref();
+                    return true;
+                }
+            }
+            return false; // No valid widget to delete
+        }
+
+        // Find the deepest container widget (TestWindow, TestWidget, or canvas_win) for placing new widgets
+        Widget *target_container = canvas_win;
+        Vector2i relative_pos = p - canvas_win->absolute_position();
+        // Clamp position inside container
+        if (relative_pos.x() < 0 || relative_pos.y() < 0)
+            return false;
+
+        for (Widget *child : canvas_win->children()) {
+            if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
+                Vector2i child_pos = child->absolute_position();
+                Vector2i child_size = child->size();
+                Vector2i local_p = p - child_pos;
+                if (local_p.x() >= 0 && local_p.y() >= 0 && local_p.x() < child_size.x() && local_p.y() < child_size.y()) {
+                    target_container = child;
+                    relative_pos = local_p;
+                    break;
+                }
+            }
+        }
+
+        if (current_tool == FA_MOUSE_POINTER) {
+            // Selection logic: Select the deepest widget, or the container if no child is hit
+			
+            if (clicked_widget && (clicked_widget==canvas_win || is_child(clicked_widget, canvas_win) )) {
+                // Select the deepest widget (could be a container or child), excluding editor_win and its children
+                printf("Selected widget %s\n", clicked_widget->id().c_str());
+                selected_widget = clicked_widget;
+                update_properties();
+                dragging = true;
+                drag_start = p;
+                // Store the offset from the widget's top-left corner to the click position
+                drag_offset = p - clicked_widget->absolute_position();
+                // Store the original parent for reparenting logic
+                original_parent = clicked_widget->parent();
+            } else {
+                // Deselect if clicking on editor_win or outside a valid widget
+                selected_widget = nullptr;
+                update_properties();
+            }
+        } else if (current_tool != 0 && current_tool != FA_TRASH) {
+            // Place new widget in the target container
+            Widget *new_w = nullptr;
+            switch (current_tool) {
+                case FA_WINDOW_MAXIMIZE: {
+                    TestWindow *sub_win = new TestWindow(target_container, "New Window");
+                    sub_win->set_position(relative_pos);
+                    sub_win->set_size(Vector2i(200, 150));
+                    sub_win->set_layout(new GroupLayout());
+                    new_w = sub_win;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_TH: {
+                    TestWidget *pane = new TestWidget(target_container);
+                    pane->set_position(relative_pos);
+                    pane->set_fixed_size(Vector2i(150, 100));
+                    pane->set_layout(new GroupLayout());
+                    new_w = pane;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_TAG: {
+                    TestLabel *lbl = new TestLabel(target_container, "Label");
+                    lbl->set_position(relative_pos);
+                    lbl->set_fixed_size(Vector2i(100, 20));
+                    new_w = lbl;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_HAND_POINT_UP: {
+                    TestButton *btn = new TestButton(target_container, "Button");
+                    btn->set_position(relative_pos);
+                    btn->set_fixed_size(Vector2i(100, 25));
+                    new_w = btn;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_KEYBOARD: {
+                    TestTextBox *tb = new TestTextBox(target_container);
+                    tb->set_position(relative_pos);
+                    tb->set_fixed_size(Vector2i(150, 25));
+                    tb->set_value("Text");
+                    new_w = tb;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_CARET_DOWN: {
+                    TestDropdown *dropdown = new TestDropdown(target_container);
+                    dropdown->set_position(relative_pos);
+                    dropdown->set_fixed_size(Vector2i(150, 25));
+                    dropdown->set_width(150);
+                    dropdown->set_text_color(Color(255, 255, 255, 255));
+                    std::vector<std::string> items = {"Item 1", "Item 2"};
+                    for (const auto& item : items) {
+                        std::vector<Shortcut> shortcuts;
+                        if (!item.empty()) {
+                            shortcuts = {{0, 0}};
+                        }
+                        dropdown->add_item(
+                            {item, item + "_item"}, 0,
+                            nullptr,
+                            shortcuts,
+                            true
+                        );
+                    }
+                    // Set item callbacks after adding
+                    for (Widget *child : dropdown->popup()->children()) {
+                        if (MenuItem *mi = dynamic_cast<MenuItem*>(child)) {
+                            mi->set_callback([mi] { std::cout << "Selected item: " << mi->caption() << "\n"; });
+                        }
+                    }
+                    dropdown->set_selected_callback([dropdown](int idx) {
+                        if (auto item = dropdown->popup()->item(idx))
+                            std::cout << "Dropdown callback - Selected item: " << item->caption() << "\n";
+                    });
+                    new_w = dropdown;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_CHECK_SQUARE: {
+                    TestCheckBox *cb = new TestCheckBox(target_container, "Checkbox");
+                    cb->set_position(relative_pos);
+                    cb->set_fixed_size(Vector2i(150, 25));
+                    new_w = cb;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_SLIDERS_H: {
+                    TestSlider *sl = new TestSlider(target_container);
+                    sl->set_position(relative_pos);
+                    sl->set_fixed_size(Vector2i(150, 25));
+                    new_w = sl;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                case FA_PALETTE: {
+                    TestColorPicker *cp = new TestColorPicker(target_container, Color(255, 0, 0, 255));
+                    cp->set_position(relative_pos);
+                    cp->set_fixed_size(Vector2i(100, 100));
+                    new_w = cp;
+                    new_w->set_id(generateUniqueId(current_tool));
+                }
+                break;
+                default:
+                    break;
+            }
+            if (new_w) {
+                selected_widget = new_w;
+                update_properties();
+                perform_layout();
+                redraw();
+                return true;
+            }
+        }
+    } else if (!down && dragging) {
+        // Handle reparenting when the mouse button is released
+        if (selected_widget && canvas_win != selected_widget) {
+            // Find the container under the mouse
+            Widget *new_parent = canvas_win;
+            Vector2i new_pos = p - canvas_win->absolute_position() - drag_offset;
+			if(selected_widget != canvas_win)
+				new_pos = snap(new_pos);
+
+            for (Widget *child : canvas_win->children()) {
+                if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
+                    Vector2i child_pos = child->absolute_position();
+                    Vector2i child_size = child->size();
+                    Vector2i local_p = p - child_pos;
+                    if (local_p.x() >= 0 && local_p.y() >= 0 && local_p.x() < child_size.x() && local_p.y() < child_size.y()) {
+                        new_parent = child;
+                        new_pos = local_p - drag_offset;
+                        break;
+                    }
+                }
+            }
+            // Only reparent if the new parent is different, not editor_win, and not the widget itself
+            if (new_parent != selected_widget->parent() && new_parent->window() != editor_win && 
+                new_parent != selected_widget) {
+                // Reparent the widget
+                Widget* current_parent = selected_widget->parent();
+                if (current_parent) {
+                    selected_widget->inc_ref(); // Prevent widget from being deleted
+                    current_parent->remove_child(selected_widget);
+                    new_parent->add_child(selected_widget);
+                    // Constrain position to new parent's bounds
+                    Vector2i parent_size = new_parent->size();
+                    Vector2i widget_size = selected_widget->size();
+                    new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+                    new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+                    selected_widget->set_position(new_pos);
+                    // Update layouts
+                    if (original_parent) {
+                        original_parent->perform_layout(m_nvg_context);
+                    }
+                    new_parent->perform_layout(m_nvg_context);
+                    perform_layout();
+                    update_properties();
+                    selected_widget->dec_ref(); // Prevent widget from being deleted
+                }
+            } else {
+                // If not reparenting, ensure the position is updated in the current parent
+                Widget* current_parent = selected_widget->parent();
+                if (current_parent) {
+                    Vector2i parent_pos = current_parent->absolute_position();
+                    new_pos = p - parent_pos - drag_offset;
+					new_pos = snap(new_pos);
+                    Vector2i parent_size = current_parent->size();
+                    Vector2i widget_size = selected_widget->size();
+                    new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+                    new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+                    selected_widget->set_position(new_pos);
+                    current_parent->perform_layout(m_nvg_context);
+                    perform_layout();
+                    update_properties();
+                }
+            }
+        }
+        dragging = false;
+        drag_offset = Vector2i(0, 0); // Reset offset
+        original_parent = nullptr; // Reset original parent
+		potential_parent = nullptr; // Reset potential parent
+    } else if (!down && resizing) {
+        // NEW: End resizing
+        resizing = false;
+        resize_handle = -1;
+        update_properties();
+    }
+
+    return false;
+}
+
+#if 0
+bool GUIEditor::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
+    m_redraw = true; // Force redraw on all mouse events
 
     if (Screen::mouse_button_event(p, button, down, modifiers)) {
         return true;
@@ -1898,6 +2199,145 @@ bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int b
     }
     return false;
 }
+#endif // OLD
+
+/* Updated: mouse_motion_event - Changed set_size(new_size) to set_fixed_size(new_size) in resizing logic to match manual fixed_size behavior for leaf widgets like TextBox and Label. */
+bool GUIEditor::mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
+    if (Screen::mouse_motion_event(p, rel, button, modifiers)) {
+        return true;
+    }
+
+    if (dragging && !TestModeManager::getInstance()->isTestModeEnabled() && 
+        (button & (1 << GLFW_MOUSE_BUTTON_1)) && selected_widget) {
+        // Find the container under the mouse
+        Widget *current_parent = selected_widget->parent();
+
+        if (!current_parent) return false;
+		if (canvas_win == selected_widget) {
+			dragging = false;
+			drag_offset = Vector2i(0, 0); // Reset offset
+			original_parent = nullptr; // Reset original parent
+			potential_parent = nullptr; // Reset potential parent
+			return false; // Safety check
+		}
+
+        Vector2i parent_pos = current_parent->absolute_position();
+        Vector2i new_pos = p - parent_pos - drag_offset;
+		if(selected_widget != canvas_win)
+				new_pos = snap(new_pos);
+
+        // Constrain position to current parent's bounds
+        Vector2i parent_size = current_parent->size();
+        Vector2i widget_size = selected_widget->size();
+        new_pos.x() = std::max(0, std::min(new_pos.x(), parent_size.x() - widget_size.x()));
+        new_pos.y() = std::max(0, std::min(new_pos.y(), parent_size.y() - widget_size.y()));
+
+        // Update position relative to current parent (reparenting happens on release)
+        selected_widget->set_position(new_pos);
+        drag_start = p; // Update drag_start to current mouse position
+
+		// Find potential new parent for highlighting
+        Widget *new_potential_parent = canvas_win;
+        for (Widget *child : canvas_win->children()) {
+            if (dynamic_cast<TestWindow*>(child) || dynamic_cast<TestWidget*>(child)) {
+                Vector2i child_pos = child->absolute_position();
+                Vector2i child_size = child->size();
+                Vector2i local_p = p - child_pos;
+                if (local_p.x() >= 0 && local_p.y() >= 0 && local_p.x() < child_size.x() && local_p.y() < child_size.y()) {
+                    new_potential_parent = child;
+                    break;
+                }
+            }
+        }
+        // Only set potential parent if it's a valid reparenting target
+        if (new_potential_parent != selected_widget->parent() && new_potential_parent->window() != editor_win && 
+            new_potential_parent != selected_widget) {
+            if (potential_parent != new_potential_parent) {
+                potential_parent = new_potential_parent;
+                redraw();
+            }
+        } else if (potential_parent != nullptr) {
+            potential_parent = nullptr;
+            redraw();
+        }
+
+        // Update parent layout if applicable
+        current_parent->perform_layout(m_nvg_context);
+        perform_layout();
+        update_properties();
+        return true;
+    } else if (resizing && !TestModeManager::getInstance()->isTestModeEnabled() && selected_widget) {
+        // Handle resizing based on handle type
+        Widget* parent = selected_widget->parent();
+        if (!parent) return false;
+
+        Vector2i parent_abs_pos = parent->absolute_position();
+        Vector2i start_mouse_rel = drag_start - parent_abs_pos;
+        Vector2i curr_mouse_rel = p - parent_abs_pos;
+        Vector2i delta = curr_mouse_rel - start_mouse_rel;
+
+        Vector2i new_pos = resize_start_pos;
+        Vector2i new_size = resize_start_size;
+
+        switch (resize_handle) {
+            case 0: // top-left
+                new_pos.x() += delta.x();
+                new_pos.y() += delta.y();
+                new_size.x() -= delta.x();
+                new_size.y() -= delta.y();
+                break;
+            case 1: // top-right
+                new_pos.y() += delta.y();
+                new_size.x() += delta.x();
+                new_size.y() -= delta.y();
+                break;
+            case 2: // bottom-left
+                new_pos.x() += delta.x();
+                new_size.x() -= delta.x();
+                new_size.y() += delta.y();
+                break;
+            case 3: // bottom-right
+                new_size.x() += delta.x();
+                new_size.y() += delta.y();
+                break;
+            case 4: // top-middle
+                new_pos.y() += delta.y();
+                new_size.y() -= delta.y();
+                break;
+            case 5: // bottom-middle
+                new_size.y() += delta.y();
+                break;
+            case 6: // left-middle
+                new_pos.x() += delta.x();
+                new_size.x() -= delta.x();
+                break;
+            case 7: // right-middle
+                new_size.x() += delta.x();
+                break;
+        }
+
+        // Clamp size to minimum
+        new_size.x() = std::max(20, new_size.x());
+        new_size.y() = std::max(20, new_size.y());
+
+        // Clamp position to parent bounds
+        Vector2i psize = parent->size();
+        new_pos.x() = std::max(0, std::min(new_pos.x(), static_cast<int>(psize.x() - new_size.x())));
+        new_pos.y() = std::max(0, std::min(new_pos.y(), static_cast<int>(psize.y() - new_size.y())));
+
+        // Snap position
+        new_pos = snap(new_pos);
+
+        selected_widget->set_position(new_pos);
+        selected_widget->set_fixed_size(new_size);
+
+        parent->perform_layout(m_nvg_context);
+        perform_layout();
+        redraw();
+        return true;
+    }
+    return false;
+}
 
 bool GUIEditor::mouse_drag_event(const Vector2i &p, const Vector2i &rel, int button, int modifiers) {
     if (!TestModeManager::getInstance()->isTestModeEnabled() && 
@@ -1960,6 +2400,43 @@ void GUIEditor::draw(NVGcontext *ctx) {
     }
 
     Screen::draw(ctx);
+}
+
+/* New: find_widget_with_handle - Public entry point for recursive handle detection under canvas_win. */
+Widget* GUIEditor::find_widget_with_handle(const Vector2i& p) {
+    return find_widget_with_handle_recursive(canvas_win, p);
+}
+
+/* New: find_widget_with_handle_recursive - Private recursive helper to find the deepest widget whose handle contains p. */
+Widget* GUIEditor::find_widget_with_handle_recursive(Widget* w, const Vector2i& p) {
+    if (!w || w->window() == editor_win) return nullptr;
+
+    // Recurse children first to prefer deepest
+    for (Widget* child : w->children()) {
+        Widget* hit = find_widget_with_handle_recursive(child, p);
+        if (hit) return hit;
+    }
+
+    // Check self handles
+    Vector2i w_pos = w->absolute_position();
+    Vector2i w_size = w->size();
+    Vector2i handle_pos[8] = {
+        {w_pos.x() - 4, w_pos.y() - 4}, // 0: top-left
+        {w_pos.x() + w_size.x() - 4, w_pos.y() - 4}, // 1: top-right
+        {w_pos.x() - 4, w_pos.y() + w_size.y() - 4}, // 2: bottom-left
+        {w_pos.x() + w_size.x() - 4, w_pos.y() + w_size.y() - 4}, // 3: bottom-right
+        {w_pos.x() + (w_size.x() - 8) / 2, w_pos.y() - 4}, // 4: top-middle
+        {w_pos.x() + (w_size.x() - 8) / 2, w_pos.y() + w_size.y() - 4}, // 5: bottom-middle
+        {w_pos.x() - 4, w_pos.y() + (w_size.y() - 8) / 2}, // 6: left-middle
+        {w_pos.x() + w_size.x() - 4, w_pos.y() + (w_size.y() - 8) / 2} // 7: right-middle
+    };
+    for (int i = 0; i < 8; ++i) {
+        Vector2i rel = p - handle_pos[i];
+        if (rel.x() >= 0 && rel.y() >= 0 && rel.x() < 8 && rel.y() < 8) {
+            return w;
+        }
+    }
+    return nullptr;
 }
 
 // Makes background window resize with system window (screen)
