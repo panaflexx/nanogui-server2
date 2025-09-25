@@ -416,10 +416,13 @@ template <typename Value_, size_t Size_> struct Matrix : MatrixBase {
 
     Matrix() { }
 
+	// From https://github.com/mitsuba-renderer/nanogui/pull/174
     explicit Matrix(Value s) {
-        memset(m, 0, sizeof(Value) * Size * Size);
-        for (size_t i = 0; i < Size; ++i)
-            m[i][i] = s;
+		for (size_t i = 0; i < Size; ++i) {
+            for (size_t j = 0; j < Size; ++j) {
+                m[i][j] = i == j ? s : 0;
+            }
+        }
     }
 
     friend Matrix operator*(const Matrix &a, const Matrix &b) {
